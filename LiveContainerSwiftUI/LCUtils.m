@@ -149,7 +149,11 @@ Class LCSharedUtilsClass = nil;
     }
 }
 
-+ (NSProgress *)signAppBundleWithZSign:(NSURL *)path completionHandler:(void (^)(BOOL success, NSError *error))completionHandler {
++ (NSProgress *)signAppBundleWithZSign:(NSURL *)path completionHandler:(void (^)(BOOL, NSError *))completionHandler {
+    return [self signAppBundleWithZSign:path entitlements:nil completionHandler:completionHandler];
+}
+
++ (NSProgress *)signAppBundleWithZSign:(NSURL *)path entitlements:(NSDictionary *)entitlements completionHandler:(void (^)(BOOL success, NSError *error))completionHandler {
     NSError *error;
 
     // use zsign as our signer~
@@ -165,7 +169,7 @@ Class LCSharedUtilsClass = nil;
 
     NSLog(@"[LC] starting signing...");
     
-    NSProgress* ans = [NSClassFromString(@"ZSigner") signWithAppPath:[path path] prov:profileData key: self.certificateData pass:self.certificatePassword completionHandler:completionHandler];
+    NSProgress* ans = [NSClassFromString(@"ZSigner") signWithAppPath:[path path] prov:profileData key: self.certificateData pass:self.certificatePassword entitlements:entitlements completionHandler:completionHandler];
     
     return ans;
 }

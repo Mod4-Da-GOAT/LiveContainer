@@ -13,11 +13,19 @@ NSProgress* currentZSignProgress;
 @implementation ZSigner
 + (NSProgress*)signWithAppPath:(NSString *)appPath prov:(NSData *)prov key:(NSData *)key pass:(NSString *)pass
              completionHandler:(void (^)(BOOL success, NSError *error))completionHandler {
+    return [self signWithAppPath:appPath prov:prov key:key pass:pass entitlements:nil completionHandler:completionHandler];
+}
+
++ (NSProgress*)signWithAppPath:(NSString *)appPath prov:(NSData *)prov key:(NSData *)key pass:(NSString *)pass entitlements:(NSDictionary *)entitlements completionHandler:(void (^)(BOOL, NSError *))completionHandler {
     NSProgress* ans = [NSProgress progressWithTotalUnitCount:1000];
         dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-            zsign(appPath, prov, key, pass, ans, completionHandler);
+            zsign(appPath, prov, key, pass, entitlements, ans, completionHandler);
         });
     return ans;
+}
+
++ (NSDictionary*)getEntitlementsWithProv:(NSData *)prov {
+    return get_entitlements(prov);
 }
 
 + (BOOL)adhocSignMachOAtPath:(NSString *)path bundleId:(NSString*)bundleId entitlementData:(NSData *)entitlementData {

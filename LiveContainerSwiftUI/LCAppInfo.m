@@ -414,7 +414,20 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
             });
         };
         
-        __block NSProgress *progress = [LCUtils signAppBundleWithZSign:appPathURL completionHandler:signCompletionHandler];
+        // Get entitlements
+        NSData* appProvData = [NSData dataWithContentsOfFile:[appPath stringByAppendingPathComponent:@"embedded.mobileprovision"]];
+        NSDictionary* appEntitlements = [NSClassFromString(@"ZSigner") getEntitlementsWithProv:appProvData];
+
+        NSURL *lcProfilePath = [NSBundle.mainBundle URLForResource:@"embedded" withExtension:@"mobileprovision"];
+        NSData *lcProfileData = [NSData dataWithContentsOfURL:lcProfilePath];
+        NSDictionary* lcEntitlements = [NSClassFromString(@"ZSigner") getEntitlementsWithProv:lcProfileData];
+
+        NSMutableDictionary* mergedEntitlements = [lcEntitlements mutableCopy];
+        if (appEntitlements) {
+            [mergedEntitlements addEntriesFromDictionary:appEntitlements];
+        }
+
+        __block NSProgress *progress = [LCUtils signAppBundleWithZSign:appPathURL entitlements:mergedEntitlements completionHandler:signCompletionHandler];
 
         if (progress) {
             progressHandler(progress);

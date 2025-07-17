@@ -6,10 +6,18 @@
 #import "CoreLocation+GuestHooks.h"
 #import "AVFoundation+GuestHooks.h"
 #import "Network+GuestHooks.h"
+#import "DeviceCheck+GuestHooks.h"
+#import "UIDevice+GuestHooks.h"
+#import "CoreTelephony+GuestHooks.h"
+#import "Sandbox+GuestHooks.h"
 
 void CoreLocationGuestHooksInit(void);
 void AVFoundationGuestHooksInit(void);
 void NetworkGuestHooksInit(void);
+void DeviceCheckGuestHooksInit(void);
+void UIDeviceGuestHooksInit(void);
+void CoreTelephonyGuestHooksInit(void);
+void SandboxGuestHooksInit(void);
 
 static NSString *loadTweakAtURL(NSURL *url) {
     NSString *tweakPath = url.path;
@@ -140,6 +148,20 @@ static void TweakLoaderConstructor() {
     if (NSUserDefaults.guestAppInfo[@"spoofNetwork"] && [NSUserDefaults.guestAppInfo[@"spoofNetwork"] boolValue]) {
         NetworkGuestHooksInit();
     }
+
+    // DeviceCheck/AppAttest Hooks
+    if (NSUserDefaults.guestAppInfo[@"bypassDeviceCheck"] && [NSUserDefaults.guestAppInfo[@"bypassDeviceCheck"] boolValue]) {
+        DeviceCheckGuestHooksInit();
+    }
+
+    // UIDevice Hooks
+    UIDeviceGuestHooksInit();
+
+    // CoreTelephony Hooks
+    CoreTelephonyGuestHooksInit();
+
+    // Sandbox Hooks
+    SandboxGuestHooksInit();
 
     if (errors.count > 0) {
         dispatch_async(dispatch_get_main_queue(), ^{

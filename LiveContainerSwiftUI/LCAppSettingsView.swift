@@ -621,138 +621,20 @@ struct LCAppSettingsView : View{
                 }
                 
                 if model.uiSpoofCamera {
-                    // Camera Mode Picker - ALWAYS VISIBLE
-                    Picker("Camera Mode", selection: $model.uiSpoofCameraMode) {
-                        Text("Standard").tag("standard")
-                        Text("Aggressive").tag("aggressive") 
-                        Text("Compatibility").tag("compatibility")
-                    }
-                    .pickerStyle(SegmentedPickerStyle())
-                    
-                    // Media Type Picker - SEPARATE FROM MODE
-                    Picker("Camera Type", selection: $model.uiSpoofCameraType) {
-                        Text("Static Image").tag("image")
+                    Picker("Spoof Type", selection: $model.uiSpoofCameraType) {
+                        Text("Image").tag("image")
                         Text("Video").tag("video")
                     }
                     .pickerStyle(SegmentedPickerStyle())
-                    
-                    // Media Selection based on type
+
                     if model.uiSpoofCameraType == "image" {
-                        CameraImagePickerView(
-                            imagePath: $model.uiSpoofCameraImagePath,
-                            errorInfo: $errorInfo,
-                            errorShow: $errorShow
-                        )
+                        CameraImagePickerView(imagePath: $model.uiSpoofCameraImagePath, errorInfo: $errorInfo, errorShow: $errorShow)
                     } else {
-                        CameraVideoPickerView(
-                            videoPath: $model.uiSpoofCameraVideoPath,
-                            loopVideo: $model.uiSpoofCameraLoop,
-                            errorInfo: $errorInfo,
-                            errorShow: $errorShow
-                        )
-                        
-                        // FIXED: Video transformations inside the video type block
-                        if !model.uiSpoofCameraVideoPath.isEmpty {
-                            Divider()
-                            
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Video Transformations")
-                                    .font(.headline)
-                                    .padding(.top, 8)
-                                
-                                Picker("Orientation", selection: Binding(
-                                    get: { model.uiSpoofCameraTransformOrientation },
-                                    set: { newValue in
-                                        model.uiSpoofCameraTransformOrientation = newValue
-                                        Task {
-                                            await processVideoTransforms()
-                                        }
-                                    }
-                                )) {
-                                    Text("Original").tag("none")
-                                    Text("Force Portrait").tag("portrait") 
-                                    Text("Force Landscape").tag("landscape")
-                                }
-                                
-                                Picker("Scale", selection: Binding(
-                                    get: { model.uiSpoofCameraTransformScale },
-                                    set: { newValue in
-                                        model.uiSpoofCameraTransformScale = newValue
-                                        Task {
-                                            await processVideoTransforms()
-                                        }
-                                    }
-                                )) {
-                                    Text("Fit").tag("fit")
-                                    Text("Fill").tag("fill")
-                                    Text("Crop").tag("crop")
-                                }
-                                
-                                Picker("Flip", selection: Binding(
-                                    get: { model.uiSpoofCameraTransformFlip },
-                                    set: { newValue in
-                                        model.uiSpoofCameraTransformFlip = newValue
-                                        Task {
-                                            await processVideoTransforms()
-                                        }
-                                    }
-                                )) {
-                                    Text("None").tag("none")
-                                    Text("Horizontal").tag("horizontal")
-                                    Text("Vertical").tag("vertical")
-                                }
-                                
-                                if model.isProcessingVideo {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        HStack {
-                                            ProgressView()
-                                                .scaleEffect(0.8)
-                                            Text("Processing video...")
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                        }
-                                        
-                                        ProgressView(value: model.videoProcessingProgress)
-                                            .progressViewStyle(LinearProgressViewStyle(tint: .blue))
-                                        
-                                        Text("\(Int(model.videoProcessingProgress * 100))%")
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    .padding(.top, 4)
-                                }
-                                
-                                Text("Video will be automatically processed when settings change. Useful for fixing Instagram videos that appear rotated.")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                    .padding(.top, 4)
-                            }
-                        }
-                    }
-                    
-                    if #unavailable(iOS 16.0) {
-                        Text("Note: Photo library access requires iOS 16.0 or later. Use Files or manual path entry instead.")
-                            .font(.caption)
-                            .foregroundColor(.orange)
+                        CameraVideoPickerView(videoPath: $model.uiSpoofCameraVideoPath, loopVideo: $model.uiSpoofCameraLoop, errorInfo: $errorInfo, errorShow: $errorShow)
                     }
                 }
             } header: {
                 Text("Camera Settings")
-            } footer: {
-                if model.uiSpoofCamera {
-                    switch model.uiSpoofCameraMode {
-                    case "standard":
-                        Text("Standard mode: Normal caching and hook coverage. Works with most apps.")
-                    case "aggressive":
-                        Text("Aggressive mode: Enhanced caching with multiple pre-loads and extended timing. For apps with strict timing requirements.")
-                    case "compatibility":
-                        Text("Compatibility mode: Maximum hook coverage with all fallback mechanisms. For legacy or problematic apps.")
-                    default:
-                        Text("When enabled, this app will receive the specified camera input instead of the device's actual camera data.")
-                    }
-                } else {
-                    Text("When enabled, this app will receive the specified camera input instead of the device's actual camera data.")
-                }
             }
            
 

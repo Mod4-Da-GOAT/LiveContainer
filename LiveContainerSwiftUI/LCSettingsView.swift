@@ -74,7 +74,7 @@ struct LCSettingsView: View {
         NavigationView {
             Form {
                 if sharedModel.multiLCStatus != 2 {
-                    Section{
+                    LCSettingSectionView(title: "lc.settings.jitLess".loc) {
                         if !certificateDataFound {
                             Button {
                                 Task{ await importCertificate() }
@@ -124,15 +124,10 @@ struct LCSettingsView: View {
                         } label: {
                             Text("lc.settings.jitlessDiagnose".loc)
                         }
-
-                    } header: {
-                        Text("lc.settings.jitLess".loc)
-                    } footer: {
-                        Text("lc.settings.jitLessDesc".loc)
                     }
                 }
                 if (store != .Unknown && store != .ADP) || LCUtils.isAppGroupAltStoreLike() {
-                    Section{
+                    LCSettingSectionView(title: "lc.settings.multiLC".loc) {
                         Button {
                             Task { await installAnotherLC() }
                         } label: {
@@ -154,13 +149,9 @@ struct LCSettingsView: View {
                                 Text("lc.settings.jitlessDiagnose".loc)
                             }
                         }
-                    } header: {
-                        Text("lc.settings.multiLC".loc)
-                    } footer: {
-                        Text("lc.settings.multiLCDesc".loc)
                     }
                 }
-                Section {
+                LCSettingSectionView(title: "JIT") {
                     if JITEnabler == .SideJITServer || JITEnabler == .JITStreamerEBLegacy {
                         HStack {
                             Text("lc.settings.JitAddress".loc)
@@ -186,105 +177,77 @@ struct LCSettingsView: View {
                     } label: {
                         Text("lc.settings.jitEnabler".loc)
                     }
+                }
 
-                } header: {
-                    Text("JIT")
-                } footer: {
-                    Text("lc.settings.JitDesc".loc)
+                Section {
+                    NavigationLink {
+                        LCGPSLocationListView()
+                    } label: {
+                        Text("Saved Locations")
+                    }
                 }
                 
-                Section{
+                LCSettingSectionView(title: "lc.settings.interface".loc) {
                     Toggle(isOn: $dynamicColors) {
                         Text("lc.settings.dynamicColors".loc)
                     }
-                } header: {
-                    Text("lc.settings.interface".loc)
-                } footer: {
-                    Text("lc.settings.dynamicColors.desc".loc)
                 }
-                Section{
+
+                LCSettingSectionView(title: "lc.common.miscellaneous".loc) {
                     Toggle(isOn: $frameShortIcon) {
                         Text("lc.settings.FrameIcon".loc)
                     }
-                } header: {
-                    Text("lc.common.miscellaneous".loc)
-                } footer: {
-                    Text("lc.settings.FrameIconDesc".loc)
-                }
-                
-                Section {
                     Toggle(isOn: $silentSwitchApp) {
                         Text("lc.settings.silentSwitchApp".loc)
                     }
-                } footer: {
-                    Text("lc.settings.silentSwitchAppDesc".loc)
-                }
-                
-                Section {
                     Toggle(isOn: $silentOpenWebPage) {
                         Text("lc.settings.silentOpenWebPage".loc)
                     }
-                } footer: {
-                    Text("lc.settings.silentOpenWebPageDesc".loc)
-                }
-                
-                if sharedModel.isHiddenAppUnlocked {
-                    Section {
+                    if sharedModel.isHiddenAppUnlocked {
                         Toggle(isOn: $strictHiding) {
                             Text("lc.settings.strictHiding".loc)
                         }
-                    } footer: {
-                        Text("lc.settings.strictHidingDesc".loc)
                     }
-                }
-                
-                if #available(iOS 16.1, *), sharedModel.multiLCStatus != 2 {
-                    if(UIApplication.shared.supportsMultipleScenes) {
-                        Picker(selection: $multitaskMode) {
-                            Text("lc.settings.multitaskMode.virtualWindow".loc).tag(MultitaskMode.virtualWindow)
-                            Text("lc.settings.multitaskMode.nativeWindow".loc).tag(MultitaskMode.nativeWindow)
-                        } label: {
-                            Text("lc.settings.multitaskMode".loc)
-                        }
-                    }
-                    Toggle(isOn: $launchInMultitaskMode) {
-                        Text("lc.settings.autoLaunchInMultitaskMode".loc)
-                    }
-                    
-                    if multitaskMode == .virtualWindow {
-                        Toggle(isOn: $autoEndPiP) {
-                            Text("lc.settings.autoEndPiP".loc)
-                        }
-                        Toggle(isOn: $bottomWindowBar) {
-                            Text("lc.settings.bottomWindowBar".loc)
-                        }
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Text("lc.settings.dockWidth".loc)
-                                    .foregroundColor(.primary)
-                                Spacer()
-                                Text("\(Int(dockWidth))px")
-                                    .foregroundColor(.secondary)
-                                    .font(.caption)
+                    if #available(iOS 16.1, *), sharedModel.multiLCStatus != 2 {
+                        if(UIApplication.shared.supportsMultipleScenes) {
+                            Picker(selection: $multitaskMode) {
+                                Text("lc.settings.multitaskMode.virtualWindow".loc).tag(MultitaskMode.virtualWindow)
+                                Text("lc.settings.multitaskMode.nativeWindow".loc).tag(MultitaskMode.nativeWindow)
+                            } label: {
+                                Text("lc.settings.multitaskMode".loc)
                             }
-                            Slider(value: $dockWidth, in: 60...110) {
-                                Text("lc.settings.dockWidth".loc)
-                            }
-                            .tint(.accentColor)
                         }
-                        .padding(.vertical, 4)
+                        Toggle(isOn: $launchInMultitaskMode) {
+                            Text("lc.settings.autoLaunchInMultitaskMode".loc)
+                        }
+
+                        if multitaskMode == .virtualWindow {
+                            Toggle(isOn: $autoEndPiP) {
+                                Text("lc.settings.autoEndPiP".loc)
+                            }
+                            Toggle(isOn: $bottomWindowBar) {
+                                Text("lc.settings.bottomWindowBar".loc)
+                            }
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Text("lc.settings.dockWidth".loc)
+                                        .foregroundColor(.primary)
+                                    Spacer()
+                                    Text("\(Int(dockWidth))px")
+                                        .foregroundColor(.secondary)
+                                        .font(.caption)
+                                }
+                                Slider(value: $dockWidth, in: 60...110) {
+                                    Text("lc.settings.dockWidth".loc)
+                                }
+                                .tint(.accentColor)
+                            }
+                            .padding(.vertical, 4)
+                        }
                     }
-                }
-                
-                Section {
                     Toggle(isOn: $dontSignApp) {
                         Text("lc.settings.dontSign".loc)
                     }
-                } footer: {
-                    Text("lc.settings.dontSignDesc".loc)
-                }
-                    
-                Section {
                     NavigationLink {
                         LCDataManagementView(appDataFolderNames: $appDataFolderNames)
                     } label: {
@@ -292,7 +255,7 @@ struct LCSettingsView: View {
                     }
                 }
                 
-                Section {
+                LCSettingSectionView(title: "lc.settings.about".loc) {
                     HStack {
                         Image("GitHub")
                         Button("LiveContainer/LiveContainer") {
@@ -311,25 +274,14 @@ struct LCSettingsView: View {
                             openGitHub2()
                         }
                     }
-                } header: {
-                    Text("lc.settings.about".loc)
-                } footer: {
-                    Text("lc.settings.warning".loc)
                 }
                 
-                VStack{
-                    Text(LCUtils.getVersionInfo())
-                        .foregroundStyle(.gray)
-                        .onTapGesture(count: 5) {
-                            sharedModel.developerMode = true
-                        }
+                Button("Help") {
+                    helpPresent = true
                 }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                    .background(Color(UIColor.systemGroupedBackground))
-                    .listRowInsets(EdgeInsets())
-                
+
                 if sharedModel.developerMode {
-                    Section {
+                    LCSettingSectionView(title: "Developer Settings") {
                         Toggle(isOn: $injectToLCItelf) {
                             Text("lc.settings.injectLCItself".loc)
                         }
@@ -373,10 +325,6 @@ struct LCSettingsView: View {
                             TextField("", text: $liveExec32Path)
                                 .multilineTextAlignment(.trailing)
                         }
-                    } header: {
-                        Text("Developer Settings")
-                    } footer: {
-                        Text("lc.settings.injectLCItselfDesc".loc)
                     }
                 }
             }

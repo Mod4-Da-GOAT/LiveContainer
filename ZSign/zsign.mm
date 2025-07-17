@@ -52,6 +52,7 @@ void zsign(NSString *appPath,
           NSData *prov,
           NSData *key,
           NSString *pass,
+          NSDictionary *entitlements,
           NSProgress* progress,
           void(^completionHandler)(BOOL success, NSError *error)
           )
@@ -71,6 +72,11 @@ void zsign(NSString *appPath,
 
 	string strEntitlementsFile;
 
+    if (entitlements) {
+        NSData *entitlementsData = [NSPropertyListSerialization dataWithPropertyList:entitlements format:NSPropertyListXMLFormat_v1_0 options:0 error:nil];
+        strEntitlementsFile = string([[[NSString alloc] initWithData:entitlementsData encoding:NSUTF8StringEncoding] cStringUsingEncoding:NSUTF8StringEncoding]);
+    }
+
     const char* strPKeyFileData = (const char*)[key bytes];
     const char* strProvFileData = (const char*)[prov bytes];
 	strPassword = [pass cStringUsingEncoding:NSUTF8StringEncoding];
@@ -82,7 +88,7 @@ void zsign(NSString *appPath,
 
 	__block ZSignAsset zSignAsset;
 	
-    if (!zSignAsset.InitSimple(strPKeyFileData, (int)[key length], strProvFileData, (int)[prov length], strPassword)) {
+    if (!zSignAsset.InitSimple(strPKeyFileData, (int)[key length], strProvFileData, (int)[prov length], strEntitlementsFile, strPassword)) {
         completionHandler(NO, makeErrorFromLog(ZLog::logs));
         ZLog::logs.clear();
 		return;
@@ -305,6 +311,20 @@ int checkCert(NSData *prov,
 
     [task resume];
     return 1;
+}
+
+NSDictionary* get_entitlements(NSData *prov) {
+    jvalue jvProv;
+    string strProvContent;
+    if (ZSignAsset::GetCMSContent2([prov bytes], (int)[prov length], strProvContent)) {
+        if (jvProv.read_plist(strProvContent)) {
+            string entitlements_plist;
+            jvProv["Entitlements"].write_plist(entitlements_plist);
+            NSData* entitlementsData = [NSData dataWithBytes:entitlements_plist.c_str() length:entitlements_plist.length()];
+            return [NSPropertyListSerialization propertyListWithData:entitlementsData options:0 format:nil error:nil];
+        }
+    }
+    return nil;
 }
 
 }

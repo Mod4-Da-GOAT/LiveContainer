@@ -729,11 +729,11 @@ bool ZSignAsset::GetCMSContent2(const void* strCMSDataInput, int size, string &s
 }
 
 
-bool ZSignAsset::InitSimple(const void* strSignerPKeyData, int strSignerPKeyDataSize, const void* strProvisionData, int strProvisionDataSize, const string &strPassword){
+bool ZSignAsset::InitSimple(const void* strSignerPKeyData, int strSignerPKeyDataSize, const void* strProvisionData, int strProvisionDataSize, const string& strEntitlements, const string &strPassword){
 
     jvalue jvProv;
     string strProvContent;
-    m_strEntitleData = "";
+    m_strEntitleData = strEntitlements;
     if (GetCMSContent2(strProvisionData, strProvisionDataSize, strProvContent))
     {
         if (jvProv.read_plist(strProvContent))

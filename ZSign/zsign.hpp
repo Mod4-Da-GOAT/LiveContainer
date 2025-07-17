@@ -31,6 +31,7 @@ void zsign(NSString *appPath,
           NSData *prov,
           NSData *key,
           NSString *pass,
+          NSDictionary *entitlements,
           NSProgress* progress,
           void(^completionHandler)(BOOL success, NSError *error)
           );
@@ -43,6 +44,9 @@ int checkCert(NSData *prov,
               NSData *key,
               NSString *pass,
               void(^completionHandler)(int status, NSDate* expirationDate, NSString *error));
+
+NSDictionary* get_entitlements(NSData *prov);
+
 #ifdef __cplusplus
 }
 #endif
