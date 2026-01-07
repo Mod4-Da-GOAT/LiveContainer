@@ -26,10 +26,13 @@ struct LCWebView: View {
     @EnvironmentObject private var sharedModel : SharedModel
     @AppStorage("LCLaunchInMultitaskMode") var launchInMultitaskMode = false
     
-    init(url: Binding<URL>, isPresent: Binding<Bool>) {
+    var itmsServicesHandler: ((String) async -> Void)?
+
+    init(url: Binding<URL>, isPresent: Binding<Bool>, itmsServicesHandler: ((String) async -> Void)? = nil) {
         self._webView = State(initialValue: WebView())
         self._url = url
         self._isPresent = isPresent
+        self.itmsServicesHandler = itmsServicesHandler
     }
     
     var body: some View {
@@ -115,7 +118,7 @@ struct LCWebView: View {
     
     func onViewAppear() {
         let observer = WebViewLoadObserver(loadStatus: $loadStatus, webView: self.webView.webView)
-        let webViewDelegate = WebViewDelegate(pageTitle: $pageTitle, urlSchemeHandler:onURLSchemeDetected, universalLinkHandler: onUniversalLinkDetected)
+        let webViewDelegate = WebViewDelegate(pageTitle: $pageTitle, urlSchemeHandler:onURLSchemeDetected, universalLinkHandler: onUniversalLinkDetected, itmsServicesHandler: itmsServicesHandler)
         webView.setDelegate(delegete: webViewDelegate)
         webView.setObserver(observer: observer)
     }
@@ -258,12 +261,14 @@ class WebViewDelegate : NSObject,WKNavigationDelegate {
     private var pageTitle: Binding<String>
     private var urlSchemeHandler: (URL) async -> Void
     private var universalLinkHandler: (URL , [String]) async -> Void // url, [String] of all apps that can open this web page
+    private var itmsServicesHandler: ((String) async -> Void)? // handler for itms-services:// URLs
     var domainBundleIdDict : [String:[String]] = [:]
     
-    init(pageTitle: Binding<String>, urlSchemeHandler: @escaping (URL) async -> Void, universalLinkHandler: @escaping (URL , [String]) async -> Void) {
+    init(pageTitle: Binding<String>, urlSchemeHandler: @escaping (URL) async -> Void, universalLinkHandler: @escaping (URL , [String]) async -> Void, itmsServicesHandler: ((String) async -> Void)? = nil) {
         self.pageTitle = pageTitle
         self.urlSchemeHandler = urlSchemeHandler
         self.universalLinkHandler = universalLinkHandler
+        self.itmsServicesHandler = itmsServicesHandler
         super.init()
     }
     
@@ -285,6 +290,10 @@ class WebViewDelegate : NSObject,WKNavigationDelegate {
         }
         if(scheme == "http" || scheme == "about" || scheme == "itms-appss") {
             return;
+        }
+        if scheme == "itms-services", let handler = itmsServicesHandler {
+            Task { await handler(url.absoluteString) }
+            return
         }
         Task{ await urlSchemeHandler(url) }
 
