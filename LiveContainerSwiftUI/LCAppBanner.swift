@@ -136,6 +136,12 @@ struct LCAppBanner : View {
                         Text("\(appInfo.version() ?? "") - \(appInfo.bundleIdentifier()!)")
                             .font(.system(size: 12))
                             .foregroundColor(.gray)
+                        if !model.uiRemark.isEmpty {
+                            Text(model.uiRemark)
+                                 .font(.system(size: 10))
+                                 .foregroundColor(dynamicColors ? mainColor.opacity(0.8) : Color("FontColor").opacity(0.8))
+                                 .lineLimit(1)
+                        }
                         Spacer()
                     }
                     
