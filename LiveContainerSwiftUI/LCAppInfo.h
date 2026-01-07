@@ -38,6 +38,7 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 @property (nonatomic, strong) NSString* jitLaunchScriptJs;
 @property NSDate* lastLaunched;
 @property NSDate* installationDate;
+@property NSString* remark;
 #if is32BitSupported
 @property bool is32bit;
 #endif
