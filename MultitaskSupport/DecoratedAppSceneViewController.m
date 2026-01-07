@@ -494,6 +494,14 @@ void UIKitFixesInit(void) {
     [self.view.superview bringSubviewToFront:self.view];
 }
 
+- (BOOL)isAtFront {
+    if (!self.view.superview) {
+        return NO;
+    }
+    NSArray *subviews = self.view.superview.subviews;
+    return [subviews indexOfObject:self.view] == subviews.count - 1;
+}
+
 - (void)updateVerticalConstraints {
     // Update safe area insets
     if(_isMaximized) {
