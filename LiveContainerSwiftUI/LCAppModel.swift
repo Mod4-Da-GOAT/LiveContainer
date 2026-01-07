@@ -106,6 +106,12 @@ class LCAppModel: ObservableObject, Hashable {
         }
     }
     
+        @Published var uiRemark : String {
+        didSet {
+            appInfo.remark = uiRemark
+        }
+    }
+    
     @Published var supportedLanguages : [String]?
 
     // MARK: GPS Addon Section
@@ -395,6 +401,7 @@ class LCAppModel: ObservableObject, Hashable {
         self.uiDontSign = appInfo.dontSign
         self.jitLaunchScriptJs = appInfo.jitLaunchScriptJs
         self.uiSpoofSDKVersion = appInfo.spoofSDKVersion
+        self.uiRemark = appInfo.remark ?? ""
 #if is32BitSupported
         self.uiIs32bit = appInfo.is32bit
 #endif
