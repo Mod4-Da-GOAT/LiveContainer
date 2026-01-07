@@ -2488,6 +2488,13 @@ struct LCAppSettingsView: View {
                         .multilineTextAlignment(.trailing)
                         .textSelection(.enabled)
                 }
+                HStack {
+                    Text("lc.appSettings.remark".loc)
+                    Spacer()
+                    TextField("lc.appSettings.remarkPlaceholder".loc, text: $model.uiRemark)
+                        .foregroundColor(.gray)
+                        .multilineTextAlignment(.trailing)
+                }
                 if !model.uiIsShared {
                     Menu {
                         Picker(selection: $model.uiTweakFolder , label: Text("")) {
