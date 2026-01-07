@@ -671,6 +671,21 @@ class AppInfoProvider {
         }
     }
 
+    
+    public func isWindowAtFront(uuid: String) -> Bool {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else {
+            return false
+        }
+
+        for window in windowScene.windows {
+            if let targetView = findMultitaskView(in: window, withUUID: uuid) {
+                return (targetView._viewControllerForAncestor()  as? DecoratedAppSceneViewController)?.isAtFront() ?? false
+            }
+        }
+
+        return false
+    }
+
     private func bringViewToFront(_ view: UIView, in window: UIWindow) {
         if let superview = view.superview {
             superview.bringSubviewToFront(view)
