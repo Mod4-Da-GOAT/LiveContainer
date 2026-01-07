@@ -94,6 +94,7 @@ struct MultitaskAppWindow : View {
     @State private var hasScheduledAutoClose = false
     @State private var didRequestManualClose = false
     @EnvironmentObject var sceneDelegate: SceneDelegate
+    @StateObject var multitaskDockManager: MultitaskDockManager = .shared
     @Environment(\.openWindow) var openWindow
     @AppStorage("LCSkipTerminatedScreen", store: LCUtils.appGroupUserDefault) var skipTerminatedScreen = false
     let pub = NotificationCenter.default.publisher(for: UIScene.didDisconnectNotification)
@@ -118,6 +119,17 @@ struct MultitaskAppWindow : View {
                 })
                     .background(.black)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .overlay {
+                        if !multitaskDockManager.isWindowAtFront(uuid: appInfo.dataUUID) {
+                            Color.white.opacity(0.001)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    // manager.bringToFront(id: instance.id)
+
+                                    _ = multitaskDockManager.bringMultitaskViewToFront(uuid: appInfo.dataUUID)
+                                }
+                        }
+                    }
             }
             .ignoresSafeArea(.all, edges: .all)
             .navigationTitle(Text("\(appInfo.displayName) - \(String(pid))"))
