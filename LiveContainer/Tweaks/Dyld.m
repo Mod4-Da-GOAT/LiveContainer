@@ -473,16 +473,16 @@ void *jitless_hook_dlopen(const char *path, int mode) {
     }
     
     // save old thread states
-    exception_mask_t masks[32];
-    mach_msg_type_number_t masksCnt;
-    exception_handler_t handlers[32];
-    exception_behavior_t behaviors[32];
-    thread_state_flavor_t flavors[32];
+    exception_mask_t mask = EXC_MASK_BREAKPOINT;
+    mach_msg_type_number_t masksCnt = 1;
+    exception_handler_t handler = excPort;
+    exception_behavior_t behavior = EXCEPTION_STATE | MACH_EXCEPTION_CODES;
+    thread_state_flavor_t flavor = ARM_THREAD_STATE64;
     arm_debug_state64_t origDebugState;
     mach_port_t thread = mach_thread_self();
     thread_get_state(thread, ARM_DEBUG_STATE64, (thread_state_t)&origDebugState, &(mach_msg_type_number_t){ARM_DEBUG_STATE64_COUNT});
-    thread_get_exception_ports(thread, EXC_MASK_BREAKPOINT, masks, &masksCnt, handlers, behaviors, flavors);
-    thread_set_exception_ports(thread, EXC_MASK_BREAKPOINT, excPort, EXCEPTION_STATE | MACH_EXCEPTION_CODES, ARM_THREAD_STATE64);
+    thread_swap_exception_ports(thread, mask, handler, behavior, flavor, &mask, &masksCnt, &handler, &behavior, &flavor);
+    assert(masksCnt == 1);
     
     // hook dyld's mmap
     arm_debug_state64_t hookDebugState = {
@@ -505,16 +505,12 @@ void *jitless_hook_dlopen(const char *path, int mode) {
     
     // restore old thread states
     thread_set_state(thread, ARM_DEBUG_STATE64, (thread_state_t)&origDebugState, ARM_DEBUG_STATE64_COUNT);
-    for (int i = 0; i < masksCnt; i++){
-        thread_set_exception_ports(mach_thread_self(), EXC_MASK_BREAKPOINT, handlers[i], behaviors[i], flavors[i]);
-        mach_port_deallocate(mach_task_self(), handlers[i]);
-    }
+    thread_swap_exception_ports(thread, mask, handler, behavior, flavor, &mask, &masksCnt, &handler, &behavior, &flavor);
     
     return result;
 }
 
 void* jitless_hook_mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset) {
-    NSLog(@"[DyldLVBypass] mmap %p called with prot: %d, fd: %d", addr, prot, fd);
     void *map = __mmap(addr, len, prot, flags, fd, offset);
     // only handle mapping __TEXT segment from fd outside of permitted path
     if (map != MAP_FAILED || !(prot & PROT_EXEC) || fd < 0) return map;

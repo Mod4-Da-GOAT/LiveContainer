@@ -63,6 +63,9 @@ struct AppSceneViewSwiftUI: UIViewControllerRepresentable {
         }
         
         func appSceneVC(_ vc: AppSceneViewController!, didInitializeWithError error: (any Error)!) {
+            DispatchQueue.main.async {
+                (vc.view.window?.windowScene?.statusBarManager as? LCStatusBarManager)?.nativeWindowViewController = vc
+            }
             onAppInitialize(vc.pid, error)
         }
     }

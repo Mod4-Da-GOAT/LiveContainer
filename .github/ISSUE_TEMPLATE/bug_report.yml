@@ -36,7 +36,7 @@ body:
       options:
         - label: I downloaded LiveContainer from releases / actions section or LiveContainer's AltStore source.
         - label: I have the latest LiveContainer.
-        - label: I installed LiveContainer through AltStore/SideStore/TrollStore or I'm confident that I signed LiveContainer correctly with all required entitlements.
+        - label: I installed LiveContainer through AltStore/SideStore/Impactor/iloader/TrollStore or I'm confident that I signed LiveContainer correctly with all required entitlements.
     validations:
       required: true
   - type: textarea

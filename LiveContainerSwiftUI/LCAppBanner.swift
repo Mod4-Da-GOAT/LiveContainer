@@ -238,11 +238,6 @@ struct LCAppBanner : View {
                 }
                 Menu {
                     Button {
-                        Task { await openSafariViewToCreateAppClip() }
-                    } label: {
-                        Label("lc.appBanner.createAppClip".loc, systemImage: "appclip")
-                    }
-                    Button {
                         copyLaunchUrl()
                     } label: {
                         Label("lc.appBanner.copyLaunchUrl".loc, systemImage: "link")
@@ -252,7 +247,11 @@ struct LCAppBanner : View {
                     } label: {
                         Label("lc.appBanner.saveAppIcon".loc, systemImage: "square.and.arrow.down")
                     }
-
+                    Button {
+                        Task { await openSafariViewToCreateAppClip() }
+                    } label: {
+                        Label("lc.appBanner.createAppClip".loc, systemImage: "appclip")
+                    }
 
                 } label: {
                     Label("lc.appBanner.addToHomeScreen".loc, systemImage: "plus.app")

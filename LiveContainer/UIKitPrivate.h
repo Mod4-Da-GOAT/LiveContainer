@@ -107,7 +107,7 @@
 @end
 
 @interface UIView(private)
-- (UIViewController *)_viewControllerForAncestor;
+- (UIViewController *)_viewDelegate;
 @end
 
 

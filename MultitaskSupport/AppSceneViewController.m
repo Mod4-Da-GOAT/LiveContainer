@@ -72,7 +72,10 @@
             NSURL *dataURL = [docURL URLByAppendingPathComponent:[NSString stringWithFormat:@"Data/Application/%@", dataUUID]];
             NSURL *tweaksURL = [docURL URLByAppendingPathComponent:@"Tweaks"];
             [bookmarks addObject:[bundle.bundleURL bookmarkDataWithOptions:(1<<11) includingResourceValuesForKeys:0 relativeToURL:0 error:0]];
-            [bookmarks addObject:[dataURL bookmarkDataWithOptions:(1<<11) includingResourceValuesForKeys:0 relativeToURL:0 error:0]];
+            NSData* containerBookmark = [dataURL bookmarkDataWithOptions:(1<<11) includingResourceValuesForKeys:0 relativeToURL:0 error:0];
+            if(containerBookmark) {
+                [bookmarks addObject:containerBookmark];
+            }
             [bookmarks addObject:[tweaksURL bookmarkDataWithOptions:(1<<11) includingResourceValuesForKeys:0 relativeToURL:0 error:0]];
         }
     }
@@ -293,6 +296,14 @@
         NSURL *url = [NSURL URLWithString:urlString];
         context.payload = @{UIApplicationLaunchOptionsURLKey: urlString};
         context.actions = [NSSet setWithObject:[[UIOpenURLAction alloc] initWithURL:url]];
+        return context;
+    }];
+}
+
+- (void)handleStatusBarTapAction:(UIAction *)action {
+    [self.presenter.scene updateSettingsWithTransitionBlock:^(id settings) {
+        UIApplicationSceneTransitionContext *context = [UIApplicationSceneTransitionContext new];
+        context.actions = [NSSet setWithObject:action];
         return context;
     }];
 }

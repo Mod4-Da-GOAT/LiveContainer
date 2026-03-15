@@ -4,6 +4,7 @@
 #import "AppSceneViewController.h"
 #import "UIKitPrivate+MultitaskSupport.h"
 #import "PiPManager.h"
+#import "VirtualWindowsHostView.h"
 #import "../LiveContainer/Localization.h"
 #import "utils.h"
 
@@ -47,7 +48,7 @@ void UIKitFixesInit(void) {
     _scaleRatio = 1.0;
     _isMaximized = [NSUserDefaults.lcUserDefaults boolForKey:@"LCLaunchMultitaskMaximized"];
     [rootVC addChildViewController:self];
-    [rootVC.view addSubview:self.view];
+    [MultitaskDockManager.shared.windowHostingView addSubview:self.view];
     _appSceneVC = [[AppSceneViewController alloc] initWithBundleId:bundleId dataUUID:dataUUID delegate:self];
     [self setupDecoratedView];
     
@@ -279,6 +280,7 @@ void UIKitFixesInit(void) {
         if (!finished) return;
         self.view.hidden = YES;
         self.view.transform = CGAffineTransformIdentity;
+        [self.view.superview sendSubviewToBack:self.view];
     }];
 }
 
@@ -370,9 +372,6 @@ void UIKitFixesInit(void) {
             [alert addAction:[UIAlertAction actionWithTitle:@"lc.common.ok".loc style:UIAlertActionStyleCancel handler:nil]];
             [alert addAction:[UIAlertAction actionWithTitle:@"lc.common.copy".loc style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
                 UIPasteboard.generalPasteboard.string = error.localizedDescription;
-                if (self.pidAvailableHandler) {
-                    self.pidAvailableHandler(nil, error);
-                }
             }]];
             [self presentViewController:alert animated:YES completion:nil];
         } else {

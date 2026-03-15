@@ -38,5 +38,6 @@ API_AVAILABLE(ios(16.0))
 - (void)appTerminationCleanUp;
 - (void)terminate;
 - (void)openURLScheme:(NSString *)urlString;
+- (void)handleStatusBarTapAction:(UIAction *)action;
 @end
 
