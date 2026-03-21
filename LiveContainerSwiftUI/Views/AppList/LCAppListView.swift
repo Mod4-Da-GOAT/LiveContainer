@@ -1145,6 +1145,7 @@ func setMode(_ mode: AppLaunchMode) {
             try await appFound.runApp(multitask: false, containerFolderName: container, forceJIT: forceJIT)
             }
         } catch {
+         ;     
             errorInfo = error.localizedDescription
             errorShow = true
         }
