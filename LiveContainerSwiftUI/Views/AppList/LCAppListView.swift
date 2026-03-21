@@ -1305,7 +1305,6 @@ func setMode(_ mode: AppLaunchMode) {
             }
         }
     }
-    
 }
 
 extension View {
