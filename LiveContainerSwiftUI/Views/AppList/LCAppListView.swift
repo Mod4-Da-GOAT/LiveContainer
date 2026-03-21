@@ -1133,7 +1133,8 @@ func setMode(_ mode: AppLaunchMode) {
     if launchInMultitaskMode {
         do {
             try await appFound.runApp(multitask: true, containerFolderName: container, forceJIT: forceJIT)
-        } catch {
+        } 
+          catch {
             errorInfo = error.localizedDescription
             errorShow = true
         }
