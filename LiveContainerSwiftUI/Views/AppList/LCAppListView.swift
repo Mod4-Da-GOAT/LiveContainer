@@ -1129,29 +1129,25 @@ func setMode(_ mode: AppLaunchMode) {
         let targetDataUUID = container ?? appFound.appInfo.dataUUID ?? ""
 
    
-        //⭐️⭐️⭐️switch mode
-    if launchInMultitaskMode {
-        do {
-            try await appFound.runApp(multitask: true, containerFolderName: container, forceJIT: forceJIT)
-        } catch {
-            errorInfo = error.localizedDescription
-            errorShow = true
-        }
-    } else if UserDefaults.standard.bool(forKey: "LCNativeFullscreen") ||
-          LCUtils.appGroupUserDefault.bool(forKey: "LCRealIPhoneMode") { 
+     // ⭐️⭐️⭐️switch mode
+         if launchInMultitaskMode {
+             do {
+                 try await appFound.runApp(multitask: true, containerFolderName: container, forceJIT: forceJIT)
+             } catch {
+                 errorInfo = error.localizedDescription
+                 errorShow = true
+             }
+         } else if UserDefaults.standard.bool(forKey: "LCNativeFullscreen") ||
+                   LCUtils.appGroupUserDefault.bool(forKey: "LCRealIPhoneMode") { 
 
-        
-        do {
-            try await appFound.runApp(multitask: false, containerFolderName: container, forceJIT: forceJIT)
-            }
-        } catch {
-         ;     
-            errorInfo = error.localizedDescription
-            errorShow = true
-        }
-        
-    }
-}
+             do {
+                 try await appFound.runApp(multitask: false, containerFolderName: container, forceJIT: forceJIT)
+             } catch {
+                 errorInfo = error.localizedDescription
+                 errorShow = true
+             }
+         }
+     }
 
     func authenticateUser() async {
         do {
