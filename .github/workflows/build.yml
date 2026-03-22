@@ -23,7 +23,7 @@ jobs:
           make package FINALPACKAGE=1
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: com.kdt.livecontainer.ipa
           path: packages/*.ipa
