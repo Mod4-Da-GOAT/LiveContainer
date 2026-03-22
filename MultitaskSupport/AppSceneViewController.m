@@ -110,7 +110,7 @@
 
     return self;
 }
-
+//⭐️⭐️⭐️Real iPhone mode + multitask mode
 - (void)setUpAppPresenter {
     RBSProcessPredicate* predicate = [PrivClass(RBSProcessPredicate) predicateMatchingIdentifier:@(self.pid)];
     
@@ -179,10 +179,24 @@
         [weakSelf appTerminationCleanUp];
     }];
     
-    [self.contentView addSubview:self.presenter.presentationView];
-    self.contentView.layer.anchorPoint = CGPointMake(0, 0);
-    self.contentView.layer.position = CGPointMake(0, 0);
-    
+ [self.contentView addSubview:self.presenter.presentationView];
+self.contentView.layer.anchorPoint = CGPointMake(0, 0);
+self.contentView.layer.position = CGPointMake(0, 0);
+self.presenter.presentationView.autoresizingMask = UIViewAutoresizingNone;
+self.presenter.presentationView.translatesAutoresizingMaskIntoConstraints = YES;
+
+
+
+if ([NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"]) {
+    CGFloat viewW = self.view.bounds.size.width;
+    CGFloat viewH = self.view.bounds.size.height;
+    CGFloat targetW = MIN(viewH * (9.0 / 16.0), viewW);
+    CGFloat offsetX = (viewW - targetW) / 2.0;
+    self.contentView.layer.position = CGPointMake(offsetX, 0);
+    self.contentView.bounds = CGRectMake(0, 0, targetW, viewH);
+}
+
+
     [self.view.window.windowScene _registerSettingsDiffActionArray:@[self] forKey:self.sceneID];
 }
 
@@ -213,11 +227,26 @@
         [self.delegate appSceneVC:self didUpdateFromSettings:baseSettings transitionContext:newContext];
     }
 }
-
+//⭐️⭐️⭐️Real iPhone mode + multitask mode
 - (void)viewWillLayoutSubviews {
+    [super viewWillLayoutSubviews];
+    CGFloat viewW = self.view.bounds.size.width;
+    CGFloat viewH = self.view.bounds.size.height;
+    if (self.presenter.presentationView) {
+        if ([NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"]) {
+            CGFloat targetW = MIN(viewH * (9.0 / 16.0), viewW);
+            CGFloat offsetX = (viewW - targetW) / 2.0;
+            self.contentView.frame = CGRectMake(offsetX, 0, targetW, viewH);
+        } else {
+            self.contentView.frame = CGRectMake(0, 0, viewW, viewH);
+        }
+    }
     [self updateFrameWithSettingsBlock:self.nextUpdateSettingsBlock];
     self.nextUpdateSettingsBlock = nil;
 }
+
+
+//⭐️⭐️⭐️Real iPhone mode + multitask mode
 - (void)updateFrameWithSettingsBlock:(void (^)(UIMutableApplicationSceneSettings *settings))block {
     __block int currentDebounceToken = self.resizeDebounceToken + 1;
     _resizeDebounceToken = currentDebounceToken;
@@ -226,7 +255,17 @@
         if(currentDebounceToken != self.resizeDebounceToken) {
             return;
         }
-        CGRect frame = CGRectMake(self.view.frame.origin.x, self.view.frame.origin.y, self.view.frame.size.width / self.scaleRatio, self.view.frame.size.height / self.scaleRatio);
+        CGFloat w = self.view.frame.size.width / self.scaleRatio;
+        CGFloat h = self.view.frame.size.height / self.scaleRatio;
+        CGFloat frameOriginX = 0; 
+        if ([NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"]) {
+          CGFloat targetW = MIN(h * (9.0 / 16.0), w);
+          frameOriginX = (w - targetW) / 2.0;
+          w = targetW;
+        }
+       CGRect frame = CGRectMake(frameOriginX, 0, w, h);
+
+
         [self.presenter.scene updateSettingsWithBlock:^(UIMutableApplicationSceneSettings *settings) {
             settings.deviceOrientation = UIDevice.currentDevice.orientation;
             settings.interfaceOrientation = self.view.window.windowScene.interfaceOrientation;
@@ -242,6 +281,7 @@
         }];
     });
 }
+
 
 - (BOOL)isAppRunning {
     return _pid > 0 && getpgid(_pid) > 0;

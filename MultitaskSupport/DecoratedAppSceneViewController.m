@@ -383,7 +383,7 @@ void UIKitFixesInit(void) {
         }
     });
 }
-
+//⭐️⭐️⭐️Real iPhone mode + multitask mode
 - (void)appSceneVC:(AppSceneViewController*)vc didUpdateFromSettings:(UIMutableApplicationSceneSettings *)baseSettings transitionContext:(id)newContext {
     UIMutableApplicationSceneSettings *newSettings = [vc.presenter.scene.settings mutableCopy];
     newSettings.userInterfaceStyle = baseSettings.userInterfaceStyle;
@@ -396,7 +396,25 @@ void UIKitFixesInit(void) {
     } else {
         [self updateWindowedFrameWithSettings:newSettings];
     }
-    CGRect newFrame = CGRectMake(0, 0, self.view.frame.size.width/self.scaleRatio, (self.view.frame.size.height - self.navigationBar.frame.size.height)/self.scaleRatio);
+    
+    CGFloat viewW = self.view.frame.size.width / self.scaleRatio;
+    CGFloat viewH = (self.view.frame.size.height - self.navigationBar.frame.size.height) / self.scaleRatio;
+    CGRect newFrame;
+    BOOL isRealIPhoneMode = [NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"];
+    if (isRealIPhoneMode) {
+        CGFloat targetW = MIN(viewH * (9.0 / 16.0), viewW);
+        CGFloat offsetX = (viewW - targetW) / 2.0;
+        newFrame = CGRectMake(0, 0, targetW, viewH);
+        
+        dispatch_async(dispatch_get_main_queue(), ^{
+            vc.presenter.presentationView.frame = CGRectMake(offsetX, 0, targetW, viewH);
+        });
+    } else {
+        newFrame = CGRectMake(0, 0, viewW, viewH);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            vc.presenter.presentationView.frame = CGRectMake(0, 0, viewW, viewH);
+        });
+    }
     
     if(UIInterfaceOrientationIsLandscape(baseSettings.interfaceOrientation)) {
         newSettings.frame = CGRectMake(0, 0, newFrame.size.height, newFrame.size.width);
@@ -406,6 +424,8 @@ void UIKitFixesInit(void) {
     
     [_appSceneVC.presenter.scene updateSettings:newSettings withTransitionContext:newContext completion:nil];
 }
+
+
 
 - (void)adjustNavigationBarButtonSpacingWithNegativeSpacing:(CGFloat)spacing rightMargin:(CGFloat)margin {
     if (!self.navigationBar) return;
@@ -473,19 +493,31 @@ void UIKitFixesInit(void) {
     self.view.center = CGPointMake(self.view.center.x + point.x, self.view.center.y + point.y);
     [self updateOriginalFrame];
 }
-
+//⭐️⭐️⭐️Real iPhone mode + multitask mode
 - (void)resizeWindow:(UIPanGestureRecognizer*)sender {
     if(_isMaximized) return;
-    
     CGPoint point = [sender translationInView:self.view];
     [sender setTranslation:CGPointZero inView:self.view];
-
     CGRect frame = self.view.frame;
     frame.size.width = MAX(50, frame.size.width + point.x);
     frame.size.height = MAX(50, frame.size.height + point.y);
     self.view.frame = frame;
     [self updateOriginalFrame];
+    CGFloat viewW = self.view.frame.size.width / self.scaleRatio;
+    CGFloat viewH = (self.view.frame.size.height - self.navigationBar.frame.size.height) / self.scaleRatio;
+    BOOL isRealIPhoneMode = [NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"];
+    if (isRealIPhoneMode) {
+        CGFloat targetW = MIN(viewH * (9.0 / 16.0), viewW);
+        CGFloat offsetX = (viewW - targetW) / 2.0;
+        _appSceneVC.contentView.frame = CGRectMake(offsetX, 0, targetW, viewH);
+    } else {
+        _appSceneVC.contentView.frame = CGRectMake(0, 0, viewW, viewH);
+    }
+    [self.appSceneVC updateFrameWithSettingsBlock:nil];
 }
+
+
+
 
 - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
     [super touchesBegan:touches withEvent:event];
