@@ -45,7 +45,7 @@ static void patchExecSlice(const char *path, struct mach_header_64 *header) {
          hasLoaderCommand = NO;
     const char *tweakLoaderPath = "@loader_path/../../Tweaks/TweakLoader.dylib";
     struct load_command *command = (struct load_command *)imageHeaderPtr;
-    for(int i = 0; i < header->ncmds > 0; i++) {
+    for(int i = 0; i < header->ncmds; i++) {
         if(command->cmd == LC_ID_DYLIB) {
             hasDylibCommand = YES;
         } else if(command->cmd == LC_LOAD_DYLIB) {
