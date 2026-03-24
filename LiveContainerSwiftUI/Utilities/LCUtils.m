@@ -1,15 +1,27 @@
+#import "LCUtils.h"
+#import "LCAppInfo.h"
+#import "../../LiveContainer/LCSharedUtils.h"
+#import "../../ZSign/zsigner.h"
+
+#import "AppSceneViewController.h" 
+#import "DecoratedAppSceneViewController.h" 
+
+
+
+@class DecoratedAppSceneViewController;
+
+
+@protocol _UISceneSettingsDiffAction <NSObject> @end
+
+
+#import "../../MultitaskSupport/DecoratedAppSceneViewController.h"
+#import "LiveContainerSwiftUI-Swift.h"
 @import Darwin;
 @import MachO;
 @import UIKit;
 @import UniformTypeIdentifiers;
 @import Security;
 
-#import "LCUtils.h"
-#import "../../LiveContainer/LCSharedUtils.h"
-#import "LCAppInfo.h"
-#import "../../MultitaskSupport/DecoratedAppSceneViewController.h"
-#import "../../ZSign/zsigner.h"
-#import "LiveContainerSwiftUI-Swift.h"
 
 // make SFSafariView happy and open data: URLs
 @implementation NSURL(hack)
@@ -591,3 +603,14 @@
 
 
 @end
+
+
+@implementation NSUserDefaults (LCUtils)
++ (bool)sideStoreExist {
+    return [[NSUserDefaults.standardUserDefaults stringForKey:@"LCSharedAppGroupID"] containsString:@"SideStore"];
+}
+@end
+
+
+
+
