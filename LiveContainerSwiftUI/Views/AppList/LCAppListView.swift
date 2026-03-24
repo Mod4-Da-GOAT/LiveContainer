@@ -8,7 +8,6 @@
 import Combine
 import SwiftUI
 import UniformTypeIdentifiers
-import Intents
 
 enum AppLaunchMode: Int {
     case native = 0
