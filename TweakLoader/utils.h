@@ -1,9 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
 
-void swizzle(Class class, SEL originalAction, SEL swizzledAction); {
-    method_exchangeImplementations(class_getClassMethod(class, originalAction), class_getClassMethod(class, swizzledAction));
-}
+void swizzle(Class class, SEL originalAction, SEL swizzledAction);
 void swizzleClassMethod(Class class, SEL originalAction, SEL swizzledAction);
 
 // Exported from the main executable
