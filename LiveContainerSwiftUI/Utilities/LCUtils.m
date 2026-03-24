@@ -16,6 +16,7 @@
 
 #import "../../MultitaskSupport/DecoratedAppSceneViewController.h"
 #import "LiveContainerSwiftUI-Swift.h"
+#import <objc/runtime.h>
 @import Darwin;
 @import MachO;
 @import UIKit;
