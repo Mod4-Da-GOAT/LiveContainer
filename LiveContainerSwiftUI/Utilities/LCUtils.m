@@ -604,14 +604,3 @@
 
 
 @end
-
-
-@implementation NSUserDefaults (LCUtils)
-+ (bool)sideStoreExist {
-    return [[NSUserDefaults.standardUserDefaults stringForKey:@"LCSharedAppGroupID"] containsString:@"SideStore"];
-}
-@end
-
-
-
-
