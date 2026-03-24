@@ -54,7 +54,7 @@ int dyld_get_program_sdk_version(void);
 + (BOOL)runtimeCanQueryPmapCustomTrust;
 @end
 
-@interface NSUserDefaults(LiveContainer)
+@interface NSUserDefaults(LCUtils)
 + (bool)sideStoreExist;
 @end
 
@@ -72,7 +72,7 @@ typedef NS_ENUM(NSInteger, GeneratedIconStyle){
     Dark = 1
 };
 
-@interface UIImage(LiveContainer)
+@interface UIImage(LCUtils)
 + (instancetype)generateIconForBundleURL:(NSURL*)url style:(GeneratedIconStyle)style hasBorder:(BOOL)hasBorder;
 @end
 BOOL saveCGImage(CGImageRef image, NSURL *url);
