@@ -128,6 +128,14 @@ class AppInfoProvider {
 // MARK: - MultitaskDockView Manager
 @available(iOS 16.0, *)
 @objc public class MultitaskDockManager: NSObject, ObservableObject {
+    //⭐️⭐️⭐️
+    @Published var menuUpdateTrigger: UUID = UUID()
+    @objc public func refreshMenu() {
+        DispatchQueue.main.async {
+            self.menuUpdateTrigger = UUID()
+        }
+    }
+    //⭐️⭐️⭐️
     @objc public static let shared = MultitaskDockManager()
     
     @Published var apps: [DockAppModel] = []
@@ -1230,6 +1238,18 @@ struct AppIconView: View {
         }
         .frame(width: iconSize, height: iconSize)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        //⭐️⭐️⭐️
+        .contextMenu {
+            ControlMenuContent(app: app)
+        }
+        .onPressGesture(
+            onPress: { isPressed = true },
+            onRelease: { location in 
+                isPressed = false
+                let _ = dockManager.bringMultitaskViewToFront(uuid: app.appUUID, from: location)
+            }
+        )
+        //⭐️⭐️⭐️
         .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 3)
         .scaleEffect(isPressed ? 1.15 : 1.0)
         .animation(.easeInOut(duration: 0.1), value: isPressed)
@@ -1333,6 +1353,85 @@ struct LoadingIconView: View {
             ProgressView()
                 .progressViewStyle(CircularProgressViewStyle(tint: .white))
                 .scaleEffect(1.2)
+        }
+    }
+}
+//⭐️⭐️⭐️
+@available(iOS 16.0, *)
+struct ControlMenuContent: View {
+    let app: DockAppModel
+    @EnvironmentObject var dockManager: MultitaskDockManager
+
+    var body: some View {
+      
+        let _ = dockManager.menuUpdateTrigger 
+        let viewController = app.view?._viewDelegate() as? DecoratedAppSceneViewController
+        
+        Group {
+            if let vc = viewController {
+                let isInPiP = PiPManager.shared.isPiP(withDecoratedVC: vc)
+                let isMax = vc.isMaximized
+
+                Section {
+                   
+                    if isInPiP {
+                        Button {
+                            PiPManager.shared.stopPiP()
+                        } label: {
+                            Label("Restore from PiP", systemImage: "pip.enter")
+                        }
+                    } else {
+                        Button {
+                            if let appSceneVC = vc.appSceneVC {
+                                PiPManager.shared.startPiP(withVC: appSceneVC)
+                            }
+                        } label: {
+                            Label("Enter PiP Mode", systemImage: "pip.exit")
+                        }
+                    }
+
+                   
+                    Button {
+                        vc.maximizeWindow()
+                    } label: {
+                        Label(isMax ? "Exit FullScreen" : "FullScreen", 
+                              systemImage: isMax ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                    }
+
+                   
+                    Button {
+                        vc.minimizeWindow()
+                    } label: {
+                        Label("Minimize", systemImage: "rectangle.stack.badge.minus")
+                    }
+                }
+
+                Divider()
+
+              
+                Section {
+                    Button(role: .destructive) {
+                        vc.closeWindow()
+                        dockManager.removeRunningApp(app.appUUID)
+                    } label: {
+                        Label("Close App", systemImage: "xmark.circle")
+                    }
+                }
+
+                Divider()
+
+              
+                Button(role: .cancel) {
+                    // back
+                } label: {
+                    Label("Back", systemImage: "chevron.backward")
+                }
+                
+            } else {
+                
+                Text("Window is unavailable")
+                    .foregroundColor(.secondary)
+            }
         }
     }
 }

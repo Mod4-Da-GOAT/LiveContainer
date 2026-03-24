@@ -8,6 +8,8 @@
 #import "../LiveContainer/Localization.h"
 #import "utils.h"
 
+#import "LiveContainerSwiftUI-Swift.h"
+
 @implementation RBSTarget(hook)
 + (instancetype)hook_targetWithPid:(pid_t)pid environmentIdentifier:(NSString *)environmentIdentifier {
     if([environmentIdentifier containsString:@"LiveProcess"]) {
@@ -33,6 +35,10 @@ void UIKitFixesInit(void) {
 }
 
 @interface DecoratedAppSceneViewController()
+//⭐️⭐️⭐️
+@property (nonatomic, strong) ResizeHandleView *moveHandle;
+//⭐️⭐️⭐️
+
 @property(nonatomic) NSArray* activatedVerticalConstraints;
 @property(nonatomic) NSString* dataUUID;
 @property(nonatomic) NSString* windowName;
@@ -118,9 +124,10 @@ void UIKitFixesInit(void) {
 
     return self;
 }
-
+//⭐️⭐️⭐️
 - (void)setupDecoratedView {
-    CGFloat navBarHeight = 44;
+    
+    CGFloat navBarHeight = 0; 
     self.view = [UIStackView new];
     BOOL isLandscape = UIInterfaceOrientationIsLandscape(UIApplication.sharedApplication.statusBarOrientation);
     CGRect frame = CGRectMake(0, 0, isLandscape ? 480 : 320, (isLandscape ? 320 : 480) + navBarHeight);
@@ -130,7 +137,6 @@ void UIKitFixesInit(void) {
     if(_isMaximized) {
         [self updateMaximizedFrameWithSettings:self.appSceneVC.settings];
         CGRect maxFrame = UIEdgeInsetsInsetRect(self.view.window.frame, self.view.window.safeAreaInsets);
-        // save origin as normalized coordinates
         frame.origin.x /= maxFrame.size.width;
         frame.origin.y /= maxFrame.size.height;
         self.originalFrame = frame;
@@ -138,7 +144,7 @@ void UIKitFixesInit(void) {
         self.view.frame = frame;
     }
     
-    // Navigation bar
+    // Navigation bar 
     UINavigationBar *navigationBar = [[UINavigationBar alloc] initWithFrame:CGRectMake(0, 0, self.view.frame.size.width, navBarHeight)];
     navigationBar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     UINavigationItem *navigationItem = [[UINavigationItem alloc] initWithTitle:@"Unnamed window"];
@@ -170,16 +176,25 @@ void UIKitFixesInit(void) {
     self.contentView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     [fixedPositionContentView addSubview:self.contentView];
     
+
+    CGFloat handleSize = 30.0;
+   self.moveHandle = [[ResizeHandleView alloc] initWithFrame:CGRectMake(0, 0, handleSize, handleSize)]; // 使用屬性賦值
+   self.moveHandle.transform = CGAffineTransformMakeRotation(M_PI); 
+   self.moveHandle.alpha = _isMaximized ? 0.0 : 1.0;
+   [self.view addSubview:self.moveHandle];
+   [self.view bringSubviewToFront:self.moveHandle];
+    
     UIPanGestureRecognizer *moveGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(moveWindow:)];
     moveGesture.minimumNumberOfTouches = 1;
     moveGesture.maximumNumberOfTouches = 1;
-    [self.navigationBar addGestureRecognizer:moveGesture];
+    [self.moveHandle addGestureRecognizer:moveGesture];
+    // ------------------------------------
 
-    // Resize handle (idea stolen from Notes debugging window)
+    // Resize handle
     UIPanGestureRecognizer *resizeGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(resizeWindow:)];
     resizeGesture.minimumNumberOfTouches = 1;
     resizeGesture.maximumNumberOfTouches = 1;
-    self.resizeHandle = [[ResizeHandleView alloc] initWithFrame:CGRectMake(self.view.frame.size.width - navBarHeight, self.view.frame.size.height - navBarHeight, navBarHeight, navBarHeight)];
+    self.resizeHandle = [[ResizeHandleView alloc] initWithFrame:CGRectMake(self.view.frame.size.width - handleSize, self.view.frame.size.height - handleSize, handleSize, handleSize)];
     self.resizeHandle.alpha = _isMaximized ? 0.0 : 1.0;
     [self.resizeHandle addGestureRecognizer:resizeGesture];
     [self.view addSubview:self.resizeHandle];
@@ -191,19 +206,22 @@ void UIKitFixesInit(void) {
     [self.view insertSubview:_appSceneVC.view atIndex:0];
     _appSceneVC.view.translatesAutoresizingMaskIntoConstraints = NO;
     
+  
     [self updateVerticalConstraints];
     [NSLayoutConstraint activateConstraints:@[
         [_appSceneVC.view.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         [_appSceneVC.view.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor]
     ]];
     
-    
     NSUserDefaults *defaults = NSUserDefaults.lcSharedDefaults;
-
     [defaults addObserver:self forKeyPath:@"LCMultitaskBottomWindowBar" options:NSKeyValueObservingOptionNew context:NULL];
     [self updateOriginalFrame];
+    [self.view layoutIfNeeded];
+
 }
 
+
+//⭐️⭐️⭐️
 
 // Stolen from UIKitester
 - (UIView *)scaleSliderViewWithTitle:(NSString *)title min:(CGFloat)minValue max:(CGFloat)maxValue value:(CGFloat)initialValue stepInterval:(CGFloat)step {
@@ -298,8 +316,9 @@ void UIKitFixesInit(void) {
         self.view.alpha = 1;
     } completion:nil];
 }
-
+//⭐️⭐️⭐️
 - (void)maximizeWindow {
+    [MultitaskDockManager.shared refreshMenu];
     if (self.isMaximized) {
         CGRect maxFrame = UIEdgeInsetsInsetRect(self.view.window.frame, self.view.window.safeAreaInsets);
         CGRect newFrame = CGRectMake(self.originalFrame.origin.x * maxFrame.size.width, self.originalFrame.origin.y * maxFrame.size.height, self.originalFrame.size.width, self.originalFrame.size.height);
@@ -307,6 +326,7 @@ void UIKitFixesInit(void) {
             self.view.frame = newFrame;
             self.view.layer.borderWidth = 1;
             self.resizeHandle.alpha = 1;
+            self.moveHandle.alpha = 1;
             [self.appSceneVC.presenter.scene updateSettingsWithBlock:^(UIMutableApplicationSceneSettings *settings) {
                 [self updateWindowedFrameWithSettings:settings];
             }];
@@ -324,6 +344,7 @@ void UIKitFixesInit(void) {
             
             self.view.layer.borderWidth = 0;
             self.resizeHandle.alpha = 0;
+            self.moveHandle.alpha = 0;
             [self.appSceneVC.presenter.scene updateSettingsWithBlock:^(UIMutableApplicationSceneSettings *settings) {
                 [self updateMaximizedFrameWithSettings:settings];
             }];
@@ -334,7 +355,7 @@ void UIKitFixesInit(void) {
         }];
     }
 }
-
+//⭐️⭐️⭐️
 - (void)appSceneVCAppDidExit:(AppSceneViewController*)vc {
     BOOL skipTerminationScreen = [NSUserDefaults.lcSharedDefaults boolForKey:@"LCSkipTerminatedScreen"];
     BOOL isManual = _isAppTerminationRequested;
@@ -363,7 +384,7 @@ void UIKitFixesInit(void) {
         [self.view insertSubview:label atIndex:0];
     }
 }
-
+//⭐️⭐️⭐️Real iPhone mode + multitask mode
 - (void)appSceneVC:(AppSceneViewController*)vc didInitializeWithError:(NSError *)error {
     dispatch_async(dispatch_get_main_queue(), ^{
         if(error) {
@@ -374,13 +395,26 @@ void UIKitFixesInit(void) {
                 UIPasteboard.generalPasteboard.string = error.localizedDescription;
             }]];
             [self presentViewController:alert animated:YES completion:nil];
-        } else {
+       } else {
             self.pid = vc.pid;
             [self updateOriginalFrame];
             if (self.pidAvailableHandler) {
-                self.pidAvailableHandler(@(self.pid), nil);
+            self.pidAvailableHandler(@(self.pid), nil);
             }
-        }
+    
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                if ([NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"]) {
+                 CGFloat viewW = self.view.frame.size.width / self.scaleRatio;
+                 CGFloat viewH = (self.view.frame.size.height - self.navigationBar.frame.size.height) / self.scaleRatio;
+                 CGFloat targetW = MIN(viewH * (9.0 / 16.0), viewW);
+                 CGFloat offsetX = (viewW - targetW) / 2.0;
+                 _appSceneVC.contentView.autoresizingMask = UIViewAutoresizingNone;
+                 _appSceneVC.contentView.frame = CGRectMake(offsetX, 0, targetW, viewH);
+                 [_appSceneVC updateFrameWithSettingsBlock:nil];
+                 }
+          });
+       }
+
     });
 }
 //⭐️⭐️⭐️Real iPhone mode + multitask mode
@@ -397,24 +431,31 @@ void UIKitFixesInit(void) {
         [self updateWindowedFrameWithSettings:newSettings];
     }
     
-    CGFloat viewW = self.view.frame.size.width / self.scaleRatio;
-    CGFloat viewH = (self.view.frame.size.height - self.navigationBar.frame.size.height) / self.scaleRatio;
+    CGFloat viewW = _appSceneVC.view.frame.size.width / self.scaleRatio;
+    CGFloat viewH = _appSceneVC.view.frame.size.height / self.scaleRatio;
+
+    //CGFloat viewW = self.view.frame.size.width / self.scaleRatio;
+    //CGFloat viewH = (self.view.frame.size.height - self.navigationBar.frame.size.height) / self.scaleRatio;
+    if (viewW <= 0 || viewH <= 0) {
+    [_appSceneVC.presenter.scene updateSettings:newSettings withTransitionContext:newContext completion:nil];
+    return;
+    }
     CGRect newFrame;
     BOOL isRealIPhoneMode = [NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"];
     if (isRealIPhoneMode) {
-        CGFloat targetW = MIN(viewH * (9.0 / 16.0), viewW);
-        CGFloat offsetX = (viewW - targetW) / 2.0;
-        newFrame = CGRectMake(0, 0, targetW, viewH);
-        
-        dispatch_async(dispatch_get_main_queue(), ^{
-            vc.presenter.presentationView.frame = CGRectMake(offsetX, 0, targetW, viewH);
-        });
+    CGFloat targetW = MIN(viewH * (9.0 / 16.0), viewW);
+    CGFloat offsetX = (viewW - targetW) / 2.0;
+    newFrame = CGRectMake(0, 0, targetW, viewH);
+    
+    _appSceneVC.contentView.autoresizingMask = UIViewAutoresizingNone;
+    _appSceneVC.contentView.frame = CGRectMake(offsetX, 0, targetW, viewH);
     } else {
-        newFrame = CGRectMake(0, 0, viewW, viewH);
-        dispatch_async(dispatch_get_main_queue(), ^{
-            vc.presenter.presentationView.frame = CGRectMake(0, 0, viewW, viewH);
-        });
+    newFrame = CGRectMake(0, 0, viewW, viewH);
+    _appSceneVC.contentView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    _appSceneVC.contentView.frame = CGRectMake(0, 0, viewW, viewH);
     }
+
+
     
     if(UIInterfaceOrientationIsLandscape(baseSettings.interfaceOrientation)) {
         newSettings.frame = CGRectMake(0, 0, newFrame.size.height, newFrame.size.width);
@@ -423,6 +464,7 @@ void UIKitFixesInit(void) {
     }
     
     [_appSceneVC.presenter.scene updateSettings:newSettings withTransitionContext:newContext completion:nil];
+ 
 }
 
 
@@ -503,8 +545,17 @@ void UIKitFixesInit(void) {
     frame.size.height = MAX(50, frame.size.height + point.y);
     self.view.frame = frame;
     [self updateOriginalFrame];
+    
+    for (UIView *subview in self.view.subviews) {
+        if ([subview isKindOfClass:[ResizeHandleView class]] && subview != self.resizeHandle) {
+            subview.frame = CGRectMake(0, 0, subview.frame.size.width, subview.frame.size.height);
+        }
+    }
+    CGFloat handleSize = self.resizeHandle.frame.size.width;
+    self.resizeHandle.frame = CGRectMake(self.view.frame.size.width - handleSize, self.view.frame.size.height - handleSize, handleSize, handleSize);
     CGFloat viewW = self.view.frame.size.width / self.scaleRatio;
     CGFloat viewH = (self.view.frame.size.height - self.navigationBar.frame.size.height) / self.scaleRatio;
+    
     BOOL isRealIPhoneMode = [NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"];
     if (isRealIPhoneMode) {
         CGFloat targetW = MIN(viewH * (9.0 / 16.0), viewW);
@@ -536,9 +587,11 @@ void UIKitFixesInit(void) {
     
     BOOL bottomWindowBar = [NSUserDefaults.lcSharedDefaults boolForKey:@"LCMultitaskBottomWindowBar"];
     BOOL hideWindowBar = MultitaskDockManager.shared.isCollapsed && _isMaximized;
-    CGFloat navBarHeight = hideWindowBar ? 0 : 44;
+    CGFloat navBarHeight = hideWindowBar ? 0 : 0;
     self.navigationBar.hidden = hideWindowBar;
-    
+    //⭐️⭐️⭐️
+    self.navigationBar.hidden = YES;
+    //⭐️⭐️⭐️
     [NSLayoutConstraint deactivateConstraints:self.activatedVerticalConstraints];
     if(bottomWindowBar) {
         self.activatedVerticalConstraints = @[

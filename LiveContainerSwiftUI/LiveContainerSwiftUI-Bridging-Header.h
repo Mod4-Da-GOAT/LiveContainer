@@ -6,30 +6,18 @@
 //
 #ifndef LiveContainerSwiftUI_Bridging_Header_h_h
 #define LiveContainerSwiftUI_Bridging_Header_h_h
+#include "LCAppInfo.h"
+#include "../LiveContainer/LCSharedUtils.h"
+#include "Utilities/LCUtils.h"
+#include "Utilities/unarchive.h"
+#include <CoreLocation/CoreLocation.h>
+#include "../MultitaskSupport/AppSceneViewController.h"
+#include "../MultitaskSupport/DecoratedAppSceneViewController.h"
+#include "../MultitaskSupport/LCStatusBarManager.h"
+#include "../MultitaskSupport/PiPManager.h"
+#include "../MultitaskSupport/VirtualWindowsHostView.h"
+#include "../LiveContainer/FoundationPrivate.h"
+#include "../LiveContainer/Tweaks/CoreLocation+GuestHooks.h"
+#include "../LiveContainer/Tweaks/AVFoundation+GuestHooks.h"
 
-
-#import "LCAppInfo.h"
-#import "LCSharedUtils.h"
-#import "LCUtils.h"
-#import "unarchive.h"
-
-
-#import "AppSceneViewController.h"
-#import "DecoratedAppSceneViewController.h"
-#import "LCStatusBarManager.h"
-#import "PiPManager.h"
-#import "VirtualWindowsHostView.h"
-#import "CoreLocation+GuestHooks.h"
-#import "AVFoundation+GuestHooks.h"
-
-@interface UISceneActivationRequestOptions (Private)
-- (void)_setRequestFullscreen:(BOOL)fullscreen;
-@end
-
-@interface UIView (Private)
-- (id)_viewDelegate;
-@end
-
-
-#endif
- //* LiveContainerSwiftUI_Bridging_Header_h_h */
+#endif /* LiveContainerSwiftUI_Bridging_Header_h_h */
