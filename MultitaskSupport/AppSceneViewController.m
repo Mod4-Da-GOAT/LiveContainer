@@ -6,12 +6,20 @@
 //
 #import "AppSceneViewController.h"
 #import "DecoratedAppSceneViewController.h"
-#import "LiveContainerSwiftUI-Swift.h"
-#import "../LiveContainerSwiftUI/Utilities/LCUtils.h"
+
 #import "PiPManager.h"
 #import "Localization.h"
 #import "LCSharedUtils.h"
 #import "utils.h"
+#import "../LiveContainerSwiftUI/Utilities/LCUtils.h"
+
+
+#import "FoundationPrivate.h"
+#import "UIKitPrivate+MultitaskSupport.h"
+
+
+#import "LiveContainerSwiftUI-Swift.h"
+
 
 @interface AppSceneViewController()
 @property int resizeDebounceToken;
@@ -26,6 +34,26 @@
 @property(nonatomic) NSExtension* extension;
 @property(nonatomic) bool isAppTerminationCleanUpCalled;
 @end
+
+static UIInterfaceOrientation LCInterfaceOrientationForView(UIView *view) {
+    UIWindowScene *windowScene = view.window.windowScene;
+    if (!windowScene) {
+        for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+            if (![scene isKindOfClass:UIWindowScene.class]) {
+                continue;
+            }
+            UIWindowScene *candidateScene = (UIWindowScene *)scene;
+            if (candidateScene.activationState == UISceneActivationStateForegroundActive) {
+                windowScene = candidateScene;
+                break;
+            }
+            if (!windowScene) {
+                windowScene = candidateScene;
+            }
+        }
+    }
+    return windowScene ? windowScene.interfaceOrientation : UIInterfaceOrientationPortrait;
+}
 
 @implementation AppSceneViewController
 
@@ -110,7 +138,7 @@
 
     return self;
 }
-
+//⭐️⭐️⭐️Real iPhone mode + multitask mode
 - (void)setUpAppPresenter {
     RBSProcessPredicate* predicate = [PrivClass(RBSProcessPredicate) predicateMatchingIdentifier:@(self.pid)];
     
@@ -134,7 +162,7 @@
     settings.foreground = YES;
     
     settings.deviceOrientation = UIDevice.currentDevice.orientation;
-    settings.interfaceOrientation = UIApplication.sharedApplication.statusBarOrientation;
+    settings.interfaceOrientation = LCInterfaceOrientationForView(self.view);
     if(UIInterfaceOrientationIsLandscape(settings.interfaceOrientation)) {
         settings.frame = CGRectMake(0, 0, self.view.frame.size.height, self.view.frame.size.width);
     } else {
@@ -142,7 +170,7 @@
     }
     //settings.interruptionPolicy = 2; // reconnect
     settings.level = 1;
-    settings.persistenceIdentifier = self.dataUUID;
+    settings.persistenceIdentifier = nil;
     if(self.isNativeWindow) {
         UIEdgeInsets defaultInsets = self.view.window.safeAreaInsets;
         settings.peripheryInsets = defaultInsets;
@@ -179,10 +207,28 @@
         [weakSelf appTerminationCleanUp];
     }];
     
-    [self.contentView addSubview:self.presenter.presentationView];
-    self.contentView.layer.anchorPoint = CGPointMake(0, 0);
-    self.contentView.layer.position = CGPointMake(0, 0);
-    
+ [self.contentView addSubview:self.presenter.presentationView];
+self.contentView.layer.anchorPoint = CGPointMake(0, 0);
+self.contentView.layer.position = CGPointMake(0, 0);
+dispatch_async(dispatch_get_main_queue(), ^{
+    [self.view setNeedsLayout];
+    [self.view layoutIfNeeded];
+});
+self.presenter.presentationView.autoresizingMask = UIViewAutoresizingNone;
+self.presenter.presentationView.translatesAutoresizingMaskIntoConstraints = YES;
+
+
+
+//if ([NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"]) {
+    //CGFloat viewW = self.view.bounds.size.width;
+    //CGFloat viewH = self.view.bounds.size.height;
+    //CGFloat targetW = MIN(viewH * (9.0 / 16.0), viewW);
+    //CGFloat offsetX = (viewW - targetW) / 2.0;
+    //self.contentView.layer.position = CGPointMake(offsetX, 0);
+    //self.contentView.bounds = CGRectMake(0, 0, targetW, viewH);
+//}
+
+
     [self.view.window.windowScene _registerSettingsDiffActionArray:@[self] forKey:self.sceneID];
 }
 
@@ -194,7 +240,7 @@
         });
     }    
 }
-
+//⭐️⭐️⭐️Real iPhone mode + multitask mode
 - (void)_performActionsForUIScene:(UIScene *)scene withUpdatedFBSScene:(id)fbsScene settingsDiff:(FBSSceneSettingsDiff *)diff fromSettings:(UIApplicationSceneSettings *)settings transitionContext:(id)context lifecycleActionType:(uint32_t)actionType {
     if(!self.isAppRunning) {
         [self appTerminationCleanUp];
@@ -205,19 +251,39 @@
     UIApplicationSceneTransitionContext *newContext = [context copy];
     newContext.actions = nil;
     if(self.isNativeWindow) {
-        // directly update the settings
         baseSettings.interruptionPolicy = 0;
         baseSettings.peripheryInsets = self.view.window.safeAreaInsets;
         [self.presenter.scene updateSettings:baseSettings withTransitionContext:newContext completion:nil];
-    } else {
+   } else {
         [self.delegate appSceneVC:self didUpdateFromSettings:baseSettings transitionContext:newContext];
-    }
+
+}
 }
 
+
+
+//⭐️⭐️⭐️Real iPhone mode + multitask mode
 - (void)viewWillLayoutSubviews {
+    [super viewWillLayoutSubviews];
+    CGFloat viewW = self.view.bounds.size.width;
+    CGFloat viewH = self.view.bounds.size.height;
+    if (self.presenter.presentationView) {
+        if ([NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"]) {
+            CGFloat targetW = MIN(viewH * (9.0 / 16.0), viewW);
+            CGFloat offsetX = (viewW - targetW) / 2.0;
+            self.contentView.autoresizingMask = UIViewAutoresizingNone;
+            self.contentView.frame = CGRectMake(offsetX, 0, targetW, viewH);
+        } else {
+            self.contentView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+            self.contentView.frame = CGRectMake(0, 0, viewW, viewH);
+        }
+    }
     [self updateFrameWithSettingsBlock:self.nextUpdateSettingsBlock];
     self.nextUpdateSettingsBlock = nil;
 }
+
+
+//⭐️⭐️⭐️Real iPhone mode + multitask mode
 - (void)updateFrameWithSettingsBlock:(void (^)(UIMutableApplicationSceneSettings *settings))block {
     __block int currentDebounceToken = self.resizeDebounceToken + 1;
     _resizeDebounceToken = currentDebounceToken;
@@ -226,7 +292,17 @@
         if(currentDebounceToken != self.resizeDebounceToken) {
             return;
         }
-        CGRect frame = CGRectMake(self.view.frame.origin.x, self.view.frame.origin.y, self.view.frame.size.width / self.scaleRatio, self.view.frame.size.height / self.scaleRatio);
+        CGFloat w = self.view.frame.size.width / self.scaleRatio;
+        CGFloat h = self.view.frame.size.height / self.scaleRatio;
+        CGFloat frameOriginX = 0; 
+        if ([NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"]) {
+          CGFloat targetW = MIN(h * (9.0 / 16.0), w);
+          frameOriginX = (w - targetW) / 2.0;
+          w = targetW;
+        }
+       CGRect frame = CGRectMake(frameOriginX, 0, w, h);
+
+
         [self.presenter.scene updateSettingsWithBlock:^(UIMutableApplicationSceneSettings *settings) {
             settings.deviceOrientation = UIDevice.currentDevice.orientation;
             settings.interfaceOrientation = self.view.window.windowScene.interfaceOrientation;
@@ -242,6 +318,7 @@
         }];
     });
 }
+
 
 - (BOOL)isAppRunning {
     return _pid > 0 && getpgid(_pid) > 0;

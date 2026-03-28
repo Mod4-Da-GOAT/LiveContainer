@@ -8,6 +8,12 @@
 import Combine
 import SwiftUI
 import UniformTypeIdentifiers
+import Intents
+
+enum AppLaunchMode: Int {
+    case native = 0
+    case realIPhone = 1
+}
 
 class SearchContext: ObservableObject {
     @Published var query: String = ""
@@ -37,6 +43,9 @@ struct AppReplaceOption : Hashable {
 }
 
 struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
+    //⭐️⭐️⭐️Switch mode
+    @AppStorage("LCNativeFullscreen") var isNative = true
+    @AppStorage("LCRealiPhoneMode") var isiPhone = false
     @Binding var appDataFolderNames: [String]
     @Binding var tweakFolderNames: [String]
     
@@ -87,6 +96,91 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
     @State private var isViewAppeared = false
     
     @ObservedObject var searchContext = SearchContext()
+
+ //⭐️⭐️⭐️Switch mode
+   var currentLaunchMode: AppLaunchMode {
+    if UserDefaults.standard.bool(forKey: "LCNativeFullscreen") {
+        return .native
+    }
+    if LCUtils.appGroupUserDefault.bool(forKey: "LCRealIPhoneMode") {
+        return .realIPhone
+    }
+
+    return .native 
+}
+
+
+
+
+
+ //⭐️⭐️⭐️Switch mode
+var launchModeSelector: some View {
+    Menu {
+        Button {
+            setMode(.native)
+        } label: {
+            HStack {
+                Text("LiveContainer Mode")
+                if isNative { 
+                    Image(systemName: "checkmark") 
+                }
+            }
+        }
+
+        //if UIDevice.current.userInterfaceIdiom == .pad {
+            Button {
+                setMode(.realIPhone)
+            } label: {
+                HStack {
+                    Text("Real iPhone Mode (9:16)")
+
+                    if !isNative && LCUtils.appGroupUserDefault.bool(forKey: "LCRealIPhoneMode") {
+                        Image(systemName: "checkmark")
+                    }
+                }
+            }
+        //}
+    } label: {
+
+        Image(systemName: "bolt.circle")
+            .foregroundColor(
+                isNative ? .green : (LCUtils.appGroupUserDefault.bool(forKey: "LCRealIPhoneMode") ? .purple : .blue)
+            )
+    }
+}
+
+
+
+
+
+
+
+ //⭐️⭐️⭐️Switch mode
+func setMode(_ mode: AppLaunchMode) {
+    withAnimation(.easeInOut(duration: 0.2)) {
+        switch mode {
+        case .native:
+
+            isNative = true
+            isiPhone = false
+
+            LCUtils.appGroupUserDefault.set(false, forKey: "LCRealIPhoneMode")
+            UserDefaults.standard.set(true, forKey: "LCNativeFullscreen")
+        case .realIPhone:
+
+            isNative = false
+            isiPhone = true
+
+            LCUtils.appGroupUserDefault.set(true, forKey: "LCRealIPhoneMode")
+            UserDefaults.standard.set(false, forKey: "LCNativeFullscreen")
+        }
+    }
+    sharedModel.objectWillChange.send()
+}
+
+
+
+    
     var sortedApps: [LCAppModel] {
         return sharedAppSortManager.sortedApps
     }
@@ -137,6 +231,7 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
                 .hidden()
                 
                 LazyVStack {
+                    // Use filteredApps instead of sharedModel.apps
                     ForEach(filteredApps, id: \.self) { app in
                         LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames)
                     }
@@ -264,6 +359,10 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
                     
 
                 }
+               //⭐️⭐️⭐️switch mode 
+                ToolbarItem(placement: .topBarLeading) {
+                  launchModeSelector
+               }
                 
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("lc.appList.openLink".loc, systemImage: "link", action: {
@@ -754,8 +853,11 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
             finalNewApp.autoSaveDisabled = false
             finalNewApp.save()
         } else {
-            // enable SDK version spoof by defalut
+            // enable SDK version spoof by default
             finalNewApp.spoofSDKVersion = true
+            // Set TweakLoader defaults for new apps (disable by default for security)
+            finalNewApp.dontInjectTweakLoader = true
+            finalNewApp.dontLoadTweakLoader = true
         }
         finalNewApp.installationDate = Date.now
         
@@ -1030,19 +1132,31 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
             errorShow = true
             return
         }
+        
+        let targetDataUUID = container ?? appFound.appInfo.dataUUID ?? ""
 
-        do {            
-            if #available(iOS 16.0, *), launchInMultitaskMode {
-                try await appFound.runApp(multitask: true, containerFolderName: container, forceJIT: forceJIT)
-            } else {
-                try await appFound.runApp(multitask: false, containerFolderName: container, forceJIT: forceJIT)
-            }
+
+        //⭐️⭐️⭐️switch mode
+    if launchInMultitaskMode {
+        do {
+            try await appFound.runApp(multitask: true, containerFolderName: container, forceJIT: forceJIT)
+        } catch {
+            errorInfo = error.localizedDescription
+            errorShow = true
+        }
+    } else if UserDefaults.standard.bool(forKey: "LCNativeFullscreen") ||
+          LCUtils.appGroupUserDefault.bool(forKey: "LCRealIPhoneMode") { 
+
+
+        do {
+            try await appFound.runApp(multitask: false, containerFolderName: container, forceJIT: forceJIT)
         } catch {
             errorInfo = error.localizedDescription
             errorShow = true
         }
         
     }
+}
     
     func authenticateUser() async {
         do {
@@ -1087,10 +1201,10 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
         await MainActor.run {
             let encoded = script?.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
                 .map { "&script-data=\($0)" } ?? ""
-            if let url = URL(string: "stikjit://enable-jit?bundle-id=\(Bundle.main.bundleIdentifier!)&pid=\(pid)\(encoded)") {
-                if let jitEnabler = JITEnablerType(rawValue: LCUtils.appGroupUserDefault.integer(forKey: "LCJITEnablerType")), jitEnabler == .StikJITLC {
-                    if let app = sharedModel.apps.first(where: { app in
-                        return app.appInfo.urlSchemes().contains("stikjit") &&
+                if let url = URL(string: "stikjit://enable-jit?bundle-id=\(Bundle.main.bundleIdentifier!)&pid=\(pid)\(encoded)") {
+                    if let jitEnabler = JITEnablerType(rawValue: LCUtils.appGroupUserDefault.integer(forKey: "LCJITEnablerType")), jitEnabler == .StikJITLC {
+                    if sharedModel.apps.contains(where: { app in
+                        app.appInfo.urlSchemes().contains("stikjit") &&
                         (sharedModel.multiLCStatus != 2 || app.appInfo.isShared)
                     }) {
                         Task { await openWebView(urlString: url.absoluteString) }

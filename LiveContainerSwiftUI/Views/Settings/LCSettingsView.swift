@@ -81,6 +81,7 @@ struct LCSettingsView: View {
                                 Text("lc.settings.importCertificate".loc)
                             }
                         } else {
+                            // SideStore/AltStore import option
                             Button {
                                 Task{ await removeCertificate() }
                             } label: {
@@ -97,6 +98,24 @@ struct LCSettingsView: View {
                                     Text("lc.settings.importCertificateFromStore %@".localizeWithFormat(storeName))
                                 }
                             }
+                            
+                            // Manual certificate import option (always show)
+                            Button {
+                                Task{ await importCertificate() }
+                            } label: {
+                                Text("lc.settings.importCertificate".loc)
+                            }
+                            
+                            // Remove certificate option (only if certificate exists)
+                            if certificateDataFound {
+                                Button {
+                                    Task{ await removeCertificate() }
+                                } label: {
+                                    Text("lc.settings.removeCertificate".loc)
+                                }
+                                .foregroundColor(.red)
+                            }
+                        
                         }
                         
                         NavigationLink {
@@ -174,6 +193,15 @@ struct LCSettingsView: View {
                         Text("JitStreamer-EB (Relaunch)").tag(JITEnablerType.JITStreamerEBLegacy)
                     } label: {
                         Text("lc.settings.jitEnabler".loc)
+                    }
+                    
+                    // DEBUGGER STATUS INDICATOR
+                    HStack {
+                        Text("Debugger Attached")
+                        Spacer()
+                        Circle()
+                            .fill(isDebuggerAttached() ? Color.green : Color.red)
+                            .frame(width: 12, height: 12)
                     }
 
                 } header: {
@@ -273,12 +301,28 @@ struct LCSettingsView: View {
                 } footer: {
                     Text("lc.settings.warning".loc)
                 }
+                Section {
+                    HStack {
+                        Image("GitHub")
+                        Button("Mod4-Da-GOAT") {
+                            openForkOwnerGitHub()
+                        }
+                    }
+                    HStack {
+                        Image("GitHub")
+                        Button("Mod4-Da-GOAT/LiveContainer") {
+                            openForkedRepo()
+                        }
+                    }
+                } header: {
+                    Text("About Fork Owner")
+                }
                 
                 VStack{
                     Text(LCUtils.getVersionInfo())
                         .foregroundStyle(.gray)
                         .onTapGesture(count: 5) {
-                            sharedModel.developerMode = true
+                            sharedModel.developerMode.toggle()
                         }
                 }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
@@ -444,6 +488,40 @@ struct LCSettingsView: View {
     func openTwitter() {
         UIApplication.shared.open(URL(string: "https://twitter.com/khanhduytran0")!)
     }
+    func openForkOwnerGitHub() {
+        UIApplication.shared.open(URL(string: "https://github.com/Mod4-Da-GOAT")!)
+    }
+
+    func openForkedRepo() {
+        UIApplication.shared.open(URL(string: "https://github.com/Mod4-Da-GOAT/LiveContainer")!)
+    }
+
+    func isDebuggerAttached() -> Bool {
+        // Method 1: Check P_TRACED flag (works for lldb, etc)
+        var info = kinfo_proc()
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()]
+        var size = MemoryLayout<kinfo_proc>.stride
+
+        let result = sysctl(&mib, UInt32(mib.count), &info, &size, nil, 0)
+
+        if result == 0 && (info.kp_proc.p_flag & P_TRACED) != 0 {
+            return true
+        }
+
+        // Method 2: Check for JIT-enabled memory (works for StikDebug)
+        // If we can allocate executable memory, JIT is enabled
+        let testSize = 1024
+        let ptr = mmap(nil, testSize, PROT_READ | PROT_WRITE | PROT_EXEC, 
+                      MAP_PRIVATE | MAP_ANONYMOUS | MAP_JIT, -1, 0)
+
+        if ptr != MAP_FAILED {
+            munmap(ptr, testSize)
+            return true
+        }
+
+        return false
+    }
+
     
     func export() {
         let fileManager = FileManager.default
