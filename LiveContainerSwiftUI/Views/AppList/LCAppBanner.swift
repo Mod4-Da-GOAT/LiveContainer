@@ -427,7 +427,37 @@ struct LCAppBanner : View {
             ]
         )
 
-sectionChildren.append(exportMenu)
+    sectionChildren.append(exportMenu)
+
+        let deviceModeMenu = UIMenu(
+        title: "Device Mode",
+        image: UIImage(systemName: "iphone"),
+        children: [
+            UIAction(
+                title: "Enable iPhone Mode",
+                image: UIImage(systemName: "iphone.gen3")
+            ) { _ in
+                model.uiForceIPhoneMode = true
+                model.uiForceIPadMode = false // if you have a separate iPad mode
+            },
+            UIAction(
+                title: "Enable iPad Mode",
+                image: UIImage(systemName: "ipad")
+            ) { _ in
+                model.uiForceIPhoneMode = false
+                model.uiForceIPadMode = true
+            },
+            UIAction(
+                title: "Reset Device Mode",
+                image: UIImage(systemName: "arrow.counterclockwise")
+            ) { _ in
+                model.uiForceIPhoneMode = false
+                model.uiForceIPadMode = false
+            }
+        ]
+    )
+
+    sectionChildren.append(deviceModeMenu)
 
         // Settings
         let settingsAction = UIAction(title: "lc.tabView.settings".loc, image: UIImage(systemName: "gear")) { _ in
