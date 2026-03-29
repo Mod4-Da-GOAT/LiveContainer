@@ -1131,16 +1131,17 @@ func setMode(_ mode: AppLaunchMode) {
         }
     }
     
-    func jitLaunch() async {
-        await jitLaunch(withScript: "")
+    func jitLaunch(appName: String) async {
+        await jitLaunch(withScript: "", appName: appName)
     }
 
-    func jitLaunch(withScript script: String) async {
+    func jitLaunch(withScript script: String, appName: String) async {
         await MainActor.run {
             jitLog = ""
         }
         let enableJITTask = Task {
-            let _ = await LCUtils.askForJIT(withScript: script) { newMsg in
+
+            let _ = await LCUtils.askForJIT(withScript: script, appName: appName) { newMsg in
                 Task { await MainActor.run {
                     self.jitLog += "\(newMsg)\n"
                 }}
@@ -1158,24 +1159,50 @@ func setMode(_ mode: AppLaunchMode) {
 
     }
     
-    func jitLaunch(withPID pid: Int, withScript script: String? = nil) async {
+    func jitLaunch(withPID pid: Int, withScript script: String? = nil, appName: String) async {
         await MainActor.run {
-            let encoded = script?.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
-                .map { "&script-data=\($0)" } ?? ""
-                if let url = URL(string: "stikjit://enable-jit?bundle-id=\(Bundle.main.bundleIdentifier!)&pid=\(pid)\(encoded)") {
-                    if let jitEnabler = JITEnablerType(rawValue: LCUtils.appGroupUserDefault.integer(forKey: "LCJITEnablerType")), jitEnabler == .StikJITLC {
-                    if sharedModel.apps.contains(where: { app in
-                        app.appInfo.urlSchemes().contains("stikjit") &&
-                        (sharedModel.multiLCStatus != 2 || app.appInfo.isShared)
-                    }) {
-                        Task { await openWebView(urlString: url.absoluteString) }
+            let encodedData = script?.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
+
+
+            if let jitEnabler = JITEnablerType(rawValue: LCUtils.appGroupUserDefault.integer(forKey: "LCJITEnablerType")) {
+                if jitEnabler == .StosDebug || jitEnabler == .StosDebugLC {
+                    let encoded = encodedData.map { "&script=\($0)" } ?? ""
+                    if jitEnabler == .StosDebugLC {
+                        if let app = sharedModel.apps.first(where: { app in
+                            return app.appInfo.urlSchemes().contains("stosdebug") &&
+                            (sharedModel.multiLCStatus != 2 || app.appInfo.isShared)
+                        }) {
+                            if var url = URL(string: "stosdebug://enableJIT?bundleId=\(Bundle.main.bundleIdentifier!)&appName=\(appName)&pid=\(pid)&relaunchApp=false\(encoded)") {
+                                Task { await openWebView(urlString: url.absoluteString) }
+                            }
+                        } else {
+                            errorInfo = "StosDebug is not found. Please install it first and switch it to shared app."
+                            errorShow = true
+                            return
+                        }
                     } else {
-                        errorInfo = "StikDebug is not found. Please install it first and switch it to shared app."
-                        errorShow = true
-                        return
+                        if var url = URL(string: "stosdebug://enableJIT?bundleId=\(Bundle.main.bundleIdentifier!)&appName=\(appName)&pid=\(pid)\(encoded)") {
+                            UIApplication.shared.open(url)
+                        }
                     }
-                } else {
-                    UIApplication.shared.open(url)
+                }
+
+                let encoded = encodedData.map { "&script-data=\($0)" } ?? ""
+                if let url = URL(string: "stikjit://enable-jit?bundle-id=\(Bundle.main.bundleIdentifier!)&pid=\(pid)\(encoded)") {
+                    if jitEnabler == .StikJITLC {
+                        if let app = sharedModel.apps.first(where: { app in
+                            return app.appInfo.urlSchemes().contains("stikjit") &&
+                            (sharedModel.multiLCStatus != 2 || app.appInfo.isShared)
+                        }) {
+                            Task { await openWebView(urlString: url.absoluteString) }
+                        } else {
+                            errorInfo = "StikDebug is not found. Please install it first and switch it to shared app."
+                            errorShow = true
+                            return
+                        }
+                    } else {
+                        UIApplication.shared.open(url)
+                    }
                 }
             }
         }
