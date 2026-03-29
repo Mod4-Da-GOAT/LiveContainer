@@ -302,7 +302,7 @@ extension LCUtils {
         }
     }
     
-    public static func askForJIT(withScript script: String? = nil, onServerMessage: ((String) -> Void)? = nil) async -> Bool {
+    public static func askForJIT(withScript script: String? = nil, appName: String? = nil, onServerMessage: ((String) -> Void)? = nil) async -> Bool {
         // if LiveContainer is installed by TrollStore
         let tsPath = "\(Bundle.main.bundlePath)/../_TrollStore"
         if (access((tsPath as NSString).utf8String, 0) == 0) {
@@ -388,8 +388,17 @@ extension LCUtils {
             } catch {
                 onServerMessage?("Failed to contact JitStreamer-EB server: \(error)")
             }
+        } else if jitEnabler == .StosDebug || jitEnabler == .StosDebugLC {
+            guard let appName else { onServerMessage?("Unable to get App Name, Please try again."); return false }
+            var launchURLStr = "stosdebug://enableJIT?bundleId=\(Bundle.main.bundleIdentifier!)&appName=\(appName)"
+
+            if let script = script, !script.isEmpty {
+                launchURLStr += "&script=\(script)"
+            }
+
+            await UIApplication.shared.open(URL(string: launchURLStr)!)
             
-        } else if jitEnabler == .StkiJIT || jitEnabler == .StikJITLC {
+        } else if jitEnabler == .StikJIT || jitEnabler == .StikJITLC {
             var launchURLStr = "stikjit://enable-jit?bundle-id=\(Bundle.main.bundleIdentifier!)"
 
             if let script = script, !script.isEmpty {
