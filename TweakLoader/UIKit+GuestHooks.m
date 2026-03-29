@@ -944,8 +944,12 @@ BOOL canAppOpenItself(NSURL* url) {
 - (CGRect)hook_UIScreen_bounds {
     NSString *appId = NSUserDefaults.lcGuestAppId;
     BOOL isSideStore = [appId.lowercaseString containsString:@"sidestore"];
-    if ([NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"] && !isSideStore
-) {
+    
+    // Check global LCRealIPhoneMode OR per-app forceIPhoneMode
+    NSUserDefaults *sharedDefaults = NSUserDefaults.lcSharedDefaults;
+    BOOL realIPhoneMode = [sharedDefaults boolForKey:@"LCRealIPhoneMode"];
+    
+    if (realIPhoneMode && !isSideStore) {
         CGRect nativeBounds = [self hook_UIScreen_bounds];
         CGFloat screenH = nativeBounds.size.height;
         CGFloat screenW = nativeBounds.size.width;
@@ -954,9 +958,9 @@ BOOL canAppOpenItself(NSURL* url) {
     }
 
     CGRect nativeBounds = [self hook_UIScreen_bounds];
-        CGFloat screenH = nativeBounds.size.height;
-        CGFloat targetW = nativeBounds.size.width; 
-        return CGRectMake(0, 0, targetW, screenH);
+    CGFloat screenH = nativeBounds.size.height;
+    CGFloat targetW = nativeBounds.size.width; 
+    return CGRectMake(0, 0, targetW, screenH);
 }
 @end
 
