@@ -1155,29 +1155,10 @@ class LCAppModel: ObservableObject, Hashable, @unchecked Sendable {
         hasher.combine(ObjectIdentifier(self))
     }
     
-    func runApp(multitask: Bool = false, containerFolderName: String? = nil, forceJIT: Bool? = nil) async throws {
-        // ... setup code ...
-    
-        // MARK: Force iPhone Mode - Store BOTH in shared AND per-app
-        let bundleId = appInfo.bundleIdentifier() ?? ""
-        let perAppKey = "forceIPhoneMode_\(bundleId)"
-    
-        // Store the per-app setting
-        LCUtils.appGroupUserDefault.set(self.uiForceIPhoneMode, forKey: perAppKey)
-    
-        // Only set global if this specific app has it enabled
-        if self.uiForceIPhoneMode {
-            LCUtils.appGroupUserDefault.set(true, forKey: "LCRealIPhoneMode")
+    func runApp(multitask: Bool = false, containerFolderName : String? = nil, bundleIdOverride : String? = nil, forceJIT: Bool? = nil) async throws{
+        if isAppRunning {
+            return
         }
-    
-        do {
-            try await appFound.runApp(multitask: multitask, containerFolderName: containerFolderName, forceJIT: forceJIT)
-        } finally {
-            // MARK: Reset Real iPhone Mode
-            LCUtils.appGroupUserDefault.set(false, forKey: "LCRealIPhoneMode")
-            // Keep the per-app setting stored for reference
-        }
-    }
         
         if uiContainers.isEmpty {
             let newName = NSUUID().uuidString
@@ -1239,6 +1220,15 @@ class LCAppModel: ObservableObject, Hashable, @unchecked Sendable {
             Task { await MainActor.run {
                 isAppRunning = false
             }}
+        }
+        // MARK: Force iPhone Mode
+        if self.uiForceIPhoneMode {
+            LCUtils.appGroupUserDefault.set(true, forKey: "LCRealIPhoneMode")
+        }
+    
+        // Reset Real iPhone Mode if force mode is off
+        if !self.uiForceIPhoneMode {
+            LCUtils.appGroupUserDefault.set(false, forKey: "LCRealIPhoneMode")
         }
         try await signApp(force: false)
         
