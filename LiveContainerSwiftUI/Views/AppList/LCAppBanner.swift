@@ -427,7 +427,7 @@ struct LCAppBanner : View {
             ]
         )
 
-sectionChildren.append(exportMenu)
+    sectionChildren.append(exportMenu)
 
         // Settings
         let settingsAction = UIAction(title: "lc.tabView.settings".loc, image: UIImage(systemName: "gear")) { _ in
@@ -621,6 +621,7 @@ sectionChildren.append(exportMenu)
     }
 
 
+
     // MARK: - Export IPA Functions
 
     func exportIPA(includeData: Bool) async {
@@ -677,7 +678,7 @@ sectionChildren.append(exportMenu)
         // Remove old IPA if exists
         try? fm.removeItem(at: ipaPath)
 
-        // Create ZIP
+        // Create ZIP using NSFileCoordinator
         try await zipDirectory(sourceURL: tmpDir, destinationURL: ipaPath)
 
         // Cleanup
@@ -685,26 +686,33 @@ sectionChildren.append(exportMenu)
 
         return ipaPath
     }
-    func zipDirectory(sourceURL: URL, destinationURL: URL) async throws {
-        let coordinator = NSFileCoordinator()
-        var coordinatorError: NSError?
 
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            coordinator.coordinate(readingItemAt: sourceURL, options: [.forUploading], error: &coordinatorError) { zipURL in
+    func zipDirectory(sourceURL: URL, destinationURL: URL) async throws {
+        return try await withCheckedThrowingContinuation { continuation in
+            let coordinator = NSFileCoordinator()
+            var error: NSError?
+
+            coordinator.coordinate(readingItemAt: sourceURL, options: [.forUploading], error: &error) { zippedURL in
                 do {
-                    // The zipURL is temporary, copy it before it gets deleted
-                    try FileManager.default.copyItem(at: zipURL, to: destinationURL)
+                    // Remove old destination if exists
+                    if FileManager.default.fileExists(atPath: destinationURL.path) {
+                        try FileManager.default.removeItem(at: destinationURL)
+                    }
+
+                    // Copy the zip to final destination
+                    try FileManager.default.copyItem(at: zippedURL, to: destinationURL)
                     continuation.resume()
                 } catch {
                     continuation.resume(throwing: error)
                 }
             }
 
-            if let coordinatorError = coordinatorError {
-                continuation.resume(throwing: coordinatorError)
+            if let error = error {
+                continuation.resume(throwing: error)
             }
         }
     }
+
 
     
     private var locationDisplayText: String {
