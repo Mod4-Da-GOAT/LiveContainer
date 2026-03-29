@@ -102,9 +102,6 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
     if UserDefaults.standard.bool(forKey: "LCNativeFullscreen") {
         return .native
     }
-    if LCUtils.appGroupUserDefault.bool(forKey: "LCRealIPhoneMode") {
-        return .realIPhone
-    }
 
     return .native 
 }
@@ -129,14 +126,12 @@ func setMode(_ mode: AppLaunchMode) {
             isNative = true
             isiPhone = false
 
-            LCUtils.appGroupUserDefault.set(false, forKey: "LCRealIPhoneMode")
             UserDefaults.standard.set(true, forKey: "LCNativeFullscreen")
         case .realIPhone:
 
             isNative = false
             isiPhone = true
 
-            LCUtils.appGroupUserDefault.set(true, forKey: "LCRealIPhoneMode")
             UserDefaults.standard.set(false, forKey: "LCNativeFullscreen")
         }
     }
@@ -1105,8 +1100,7 @@ func setMode(_ mode: AppLaunchMode) {
             errorInfo = error.localizedDescription
             errorShow = true
         }
-    } else if UserDefaults.standard.bool(forKey: "LCNativeFullscreen") ||
-          LCUtils.appGroupUserDefault.bool(forKey: "LCRealIPhoneMode") { 
+    } else if UserDefaults.standard.bool(forKey: "LCNativeFullscreen") {
 
 
         do {
