@@ -1203,8 +1203,6 @@ func setMode(_ mode: AppLaunchMode) {
                     } else {
                         UIApplication.shared.open(url)
                     }
-                } else {
-                    UIApplication.shared.open(url)
                 }
             }
         }
