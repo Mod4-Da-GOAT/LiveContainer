@@ -2041,9 +2041,7 @@ var body: some View {
     }
 }
 
-// MARK: - Device Spoofing Section (extracted to reduce type-checker load)
-@ViewBuilder
-
+// MARK: - Settings Sections
 @ViewBuilder private var settingsDataSection: some View {
     Section {
             HStack {
