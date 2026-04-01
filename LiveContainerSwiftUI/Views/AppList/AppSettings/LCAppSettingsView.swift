@@ -2286,15 +2286,6 @@ struct LCAppSettingsView: View {
             }
             
             Section {
-                Button("lc.appSettings.forceSign".loc) {
-                    Task { await forceResign() }
-                }
-                .disabled(model.isAppRunning)
-            } footer: {
-                Text("lc.appSettings.forceSignDesc".loc)
-            }
-            
-            Section {
                 ForEach(model.uiCustomUrlSchemes, id: \.self) { scheme in
                     HStack {
                         Text(scheme + "://")
@@ -2346,6 +2337,13 @@ struct LCAppSettingsView: View {
         }
         .navigationTitle(appInfo.displayName())
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
+        .onAppear {
+            sharedModel.isInAppSettings = true
+        }
+        .onDisappear {
+            sharedModel.isInAppSettings = false
+        }
         .alert("lc.common.error".loc, isPresented: $errorShow) {
             Button("lc.common.ok".loc, action: {
             })
