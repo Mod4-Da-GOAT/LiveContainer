@@ -204,17 +204,24 @@ func setMode(_ mode: AppLaunchMode) {
                 LazyVStack {
                     // Use filteredApps instead of sharedModel.apps
                     ForEach(filteredApps, id: \.self) { app in
-                        LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames)
-                            .overlay(alignment: .leading) {
-                                if isMultiSelectMode {
-                                    Image(systemName: selectedAppsForDeletion.contains(app) ? "checkmark.circle.fill" : "circle")
-                                        .foregroundColor(selectedAppsForDeletion.contains(app) ? .red : .secondary)
-                                        .font(.title2)
-                                        .padding(.leading, 4)
-                                }
+                        ZStack(alignment: .leading) {
+                            LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames)
+                                .padding(.leading, isMultiSelectMode ? 36 : 0)
+                                .animation(.easeInOut(duration: 0.2), value: isMultiSelectMode)
+                                .allowsHitTesting(!isMultiSelectMode)
+                            
+                            if isMultiSelectMode {
+                                Image(systemName: selectedAppsForDeletion.contains(app) ? "checkmark.circle.fill" : "circle")
+                                    .foregroundColor(selectedAppsForDeletion.contains(app) ? .red : .secondary)
+                                    .font(.title2)
+                                    .padding(.leading, 6)
+                                    .transition(.opacity.combined(with: .move(edge: .leading)))
                             }
-                            .onTapGesture {
-                                if isMultiSelectMode {
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            if isMultiSelectMode {
+                                withAnimation(.easeInOut(duration: 0.1)) {
                                     if selectedAppsForDeletion.contains(app) {
                                         selectedAppsForDeletion.remove(app)
                                     } else {
@@ -222,7 +229,7 @@ func setMode(_ mode: AppLaunchMode) {
                                     }
                                 }
                             }
-                            .allowsHitTesting(!isMultiSelectMode)
+                        }
                     }
                     .transition(.scale)
                 }
