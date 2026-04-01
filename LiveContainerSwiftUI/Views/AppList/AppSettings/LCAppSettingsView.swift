@@ -2060,7 +2060,14 @@ struct LCAppSettingsView: View {
             Section {
                 Toggle(isOn: $model.uiHideLiveContainer) {
                     Text("lc.appSettings.hideLiveContainer".loc)
-                } 
+                }
+
+                Toggle(isOn: Binding(
+                    get: { UserDefaults.standard.bool(forKey: "LCShowExitButton") },
+                    set: { UserDefaults.standard.set($0, forKey: "LCShowExitButton") }
+                )) {
+                    Text("lc.appSettings.showExitButton".loc)
+                }
 
                 Toggle(isOn: $model.uiDontInjectTweakLoader) {
                     Text("lc.appSettings.dontInjectTweakLoader".loc)
@@ -2337,12 +2344,18 @@ struct LCAppSettingsView: View {
         }
         .navigationTitle(appInfo.displayName())
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.hidden, for: .tabBar)
         .onAppear {
             sharedModel.isInAppSettings = true
         }
         .onDisappear {
             sharedModel.isInAppSettings = false
+        }
+        .apply {
+            if #available(iOS 16.0, *) {
+                $0.toolbar(.hidden, for: .tabBar)
+            } else {
+                $0
+            }
         }
         .alert("lc.common.error".loc, isPresented: $errorShow) {
             Button("lc.common.ok".loc, action: {
