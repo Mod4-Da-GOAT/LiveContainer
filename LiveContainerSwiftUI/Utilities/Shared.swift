@@ -69,6 +69,8 @@ class SharedModel: ObservableObject {
     @Published var hiddenApps : [LCAppModel] = []
     
     @Published var pidCallback : ((NSNumber, Error?) -> Void)? = nil
+    @Published var isMultiSelectMode = false
+    @Published var isInAppSettings = false
 
     
     static let isPhone: Bool = {
