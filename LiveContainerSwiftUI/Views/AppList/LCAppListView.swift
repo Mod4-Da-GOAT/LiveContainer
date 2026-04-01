@@ -94,6 +94,10 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
     @AppStorage("LCLaunchInMultitaskMode") var launchInMultitaskMode = false
     
     @State private var isViewAppeared = false
+    @State private var isMultiSelectMode = false
+    @State private var selectedAppsForDeletion: Set<LCAppModel> = []
+    @StateObject private var multiDeleteConfirmAlert = YesNoHelper()
+    @StateObject private var multiDeleteDataAlert = YesNoHelper()
     
     @ObservedObject var searchContext = SearchContext()
 
@@ -357,6 +361,29 @@ func setMode(_ mode: AppLaunchMode) {
                         Label("lc.appList.sort".loc, systemImage: "line.3.horizontal.decrease.circle")
                     }
                 }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    if isMultiSelectMode {
+                        Button(role: .destructive) {
+                            Task { await deleteSelectedApps() }
+                        } label: {
+                            Label("lc.appList.deleteSelected".loc, systemImage: "trash")
+                                .foregroundColor(selectedAppsForDeletion.isEmpty ? .secondary : .red)
+                        }
+                        .disabled(selectedAppsForDeletion.isEmpty)
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        withAnimation {
+                            isMultiSelectMode.toggle()
+                            if !isMultiSelectMode { selectedAppsForDeletion.removeAll() }
+                        }
+                    } label: {
+                        Label(isMultiSelectMode ? "lc.common.cancel".loc : "lc.appList.selectApps".loc,
+                              systemImage: isMultiSelectMode ? "xmark.circle" : "checkmark.circle")
+                    }
+                }
             }
         }
         .navigationViewStyle(StackNavigationViewStyle())
@@ -422,6 +449,22 @@ func setMode(_ mode: AppLaunchMode) {
             Button("lc.common.cancel".loc, role: .cancel) {
                 generatedIconStyleSelector.close(result: nil)
             }
+        }
+        .alert("lc.appList.deleteSelectedConfirm".loc, isPresented: $multiDeleteConfirmAlert.show) {
+            Button(role: .destructive) { multiDeleteConfirmAlert.close(result: true) } label: {
+                Text("lc.common.delete".loc)
+            }
+            Button("lc.common.cancel".loc, role: .cancel) { multiDeleteConfirmAlert.close(result: false) }
+        } message: {
+            Text("lc.appList.deleteSelectedMessage \(selectedAppsForDeletion.count)".localizeWithFormat(selectedAppsForDeletion.count))
+        }
+        .alert("lc.appList.removeFolderTitle".loc, isPresented: $multiDeleteDataAlert.show) {
+             Button(role: .destructive) { multiDeleteDataAlert.close(result: true) } label: {
+                Text("lc.common.yes".loc)
+            }
+            Button("lc.common.no".loc) { multiDeleteDataAlert.close(result: false) }
+        } message: {
+            Text("lc.appBanner.confirmRemoveFolder".loc)
         }
         .textFieldAlert(
             isPresented: $webViewUrlInput.show,
@@ -1023,6 +1066,42 @@ func setMode(_ mode: AppLaunchMode) {
                 return app == now
             }
             
+        }
+    }
+
+    func deleteSelectedApps() async {
+        guard !selectedAppsForDeletion.isEmpty else { return }
+        guard let confirmed = await multiDeleteConfirmAlert.open(), confirmed else { return }
+    
+        let hasContainers = selectedAppsForDeletion.contains { !$0.appInfo.containers.isEmpty }
+        var removeData = false
+        if hasContainers {
+            removeData = (await multiDeleteDataAlert.open()) ?? false
+        }
+    
+        let fm = FileManager()
+        for app in selectedAppsForDeletion {
+            do {
+                try fm.removeItem(atPath: app.appInfo.bundlePath()!)
+                removeApp(app: app)
+                if removeData {
+                    for container in app.appInfo.containers {
+                        if fm.fileExists(atPath: container.containerURL.path) {
+                            try? fm.removeItem(at: container.containerURL)
+                        }
+                        LCUtils.removeAppKeychain(dataUUID: container.folderName)
+                        DispatchQueue.main.async {
+                            self.appDataFolderNames.removeAll { $0 == container.folderName }
+                        }
+                    }
+                }
+            } catch {
+                // continue deleting others even if one fails
+            }
+        }
+        withAnimation {
+            isMultiSelectMode = false
+            selectedAppsForDeletion.removeAll()
         }
     }
     
