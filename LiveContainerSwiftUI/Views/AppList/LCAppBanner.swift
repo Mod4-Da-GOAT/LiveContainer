@@ -60,6 +60,7 @@ struct LCAppBanner : View {
     
     var body: some View {
 
+        ZStack(alignment: .topLeading) {
         HStack {
             HStack {
                 Image(uiImage: icon)
@@ -229,6 +230,25 @@ struct LCAppBanner : View {
                     openSettings()
                 }
         }
+
+        // Exit-app overlay button — top-left corner, only visible when app is running
+        if model.isAppRunning {
+            Button {
+                UserDefaults.standard.removeObject(forKey: "selected")
+                UserDefaults.standard.removeObject(forKey: "selectedContainer")
+                LCSharedUtils.launchToGuestApp()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(.white, Color.red)
+                    .shadow(radius: 2)
+            }
+            .buttonStyle(.plain)
+            .padding(6)
+            .transition(.scale.combined(with: .opacity))
+        }
+
+        } // end ZStack
         .fileExporter(
             isPresented: $saveIconExporterShow,
             document: saveIconFile,

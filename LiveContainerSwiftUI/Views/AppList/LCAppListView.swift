@@ -379,6 +379,7 @@ func setMode(_ mode: AppLaunchMode) {
                                 deleteAppData = false
                             }
                         }
+                        sharedModel.isMultiSelectMode = isMultiSelectMode
                     } label: {
                         Image(systemName: isMultiSelectMode ? "xmark.circle.fill" : "checkmark.circle")
                             .foregroundColor(isMultiSelectMode ? .red : .green)
@@ -1436,6 +1437,7 @@ func setMode(_ mode: AppLaunchMode) {
                 deleteAppData = false
                 isDeleting = false
             }
+            sharedModel.isMultiSelectMode = false
         }
     }
     
