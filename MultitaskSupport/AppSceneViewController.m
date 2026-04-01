@@ -6,6 +6,7 @@
 //
 #import "AppSceneViewController.h"
 #import "DecoratedAppSceneViewController.h"
+#import <sys/sysctl.h>
 
 #import "PiPManager.h"
 #import "Localization.h"
@@ -26,6 +27,8 @@
 @property CGPoint normalizedOrigin;
 @property bool isNativeWindow;
 @property NSUUID* identifier;
+@property(nonatomic, strong) NSMutableArray *childProcessAssertions;
+@property(nonatomic, strong) NSTimer *childProcessMonitorTimer;
 @end
 
 @interface AppSceneViewController()
@@ -230,6 +233,13 @@ self.presenter.presentationView.translatesAutoresizingMaskIntoConstraints = YES;
 
 
     [self.view.window.windowScene _registerSettingsDiffActionArray:@[self] forKey:self.sceneID];
+
+    // Disable background notifications so WebKit doesn't pause media in multitasking
+    [self setBackgroundNotificationEnabled:false];
+
+    // Acquire foreground assertions for WebKit child processes (WebContent, GPU)
+    // to prevent iOS 17+ from throttling their display link / rendering pipeline
+    [self acquireForegroundAssertionForChildProcesses];
 }
 
 - (void)terminate {
@@ -329,6 +339,7 @@ self.presenter.presentationView.translatesAutoresizingMaskIntoConstraints = YES;
         return;
     }
     _isAppTerminationCleanUpCalled = true;
+    [self invalidateChildProcessAssertions];
     dispatch_async(dispatch_get_main_queue(), ^{
         if(self.sceneID) {
             [[PrivClass(FBSceneManager) sharedInstance] destroyScene:self.sceneID withTransitionContext:nil];
@@ -383,6 +394,107 @@ self.presenter.presentationView.translatesAutoresizingMaskIntoConstraints = YES;
         context.actions = [NSSet setWithObject:action];
         return context;
     }];
+}
+
+#pragma mark - WebKit child process foreground assertions (iOS 17+ media fix)
+
+- (void)acquireForegroundAssertionForChildProcesses {
+    if (@available(iOS 17.0, *)) {} else return; // Only needed on iOS 17+
+
+    self.childProcessAssertions = [NSMutableArray array];
+
+    // 1. Take a foreground assertion for the guest app process itself
+    [self acquireAssertionForPid:self.pid explanation:@"LiveContainer guest app foreground"];
+
+    // 2. Monitor for WebKit child processes (WebContent, GPU) spawned by the guest app
+    //    They appear shortly after the guest app creates a WKWebView
+    __weak typeof(self) weakSelf = self;
+    NSMutableSet *knownPids = [NSMutableSet set];
+    self.childProcessMonitorTimer = [NSTimer timerWithTimeInterval:2.0 repeats:YES block:^(NSTimer *timer) {
+        if (!weakSelf || !weakSelf.isAppRunning) {
+            [timer invalidate];
+            return;
+        }
+        NSArray *childPids = [weakSelf findChildProcessesOfPid:weakSelf.pid];
+        for (NSNumber *childPid in childPids) {
+            if (![knownPids containsObject:childPid]) {
+                [knownPids addObject:childPid];
+                NSString *explanation = [NSString stringWithFormat:@"LiveContainer WebKit child (pid %@)", childPid];
+                [weakSelf acquireAssertionForPid:childPid.intValue explanation:explanation];
+                NSLog(@"[LiveContainer] Acquired foreground assertion for child process %@", childPid);
+            }
+        }
+    }];
+    [[NSRunLoop mainRunLoop] addTimer:self.childProcessMonitorTimer forMode:NSRunLoopCommonModes];
+}
+
+- (void)acquireAssertionForPid:(pid_t)pid explanation:(NSString *)explanation {
+    Class RBSAssertionClass = NSClassFromString(@"RBSAssertion");
+    Class RBSDomainAttributeClass = NSClassFromString(@"RBSDomainAttribute");
+    Class RBSTargetClass = NSClassFromString(@"RBSTarget");
+    if (!RBSAssertionClass || !RBSDomainAttributeClass || !RBSTargetClass) return;
+
+    RBSTarget *target = [RBSTargetClass targetWithPid:pid];
+
+    // Request foreground visibility — this grants rendering/display link access
+    NSMutableArray *attributes = [NSMutableArray array];
+
+    // Try various domain attributes that grant rendering access
+    id fgAttr = [RBSDomainAttributeClass attributeWithDomain:@"com.apple.frontboard.visibility"
+                                                        name:@"Foreground"];
+    if (fgAttr) [attributes addObject:fgAttr];
+
+    id gpuAttr = [RBSDomainAttributeClass attributeWithDomain:@"com.apple.common"
+                                                         name:@"UserInteractiveNonFocal"];
+    if (gpuAttr) [attributes addObject:gpuAttr];
+
+    if (attributes.count == 0) return;
+
+    RBSAssertion *assertion = [[RBSAssertionClass alloc] initWithExplanation:explanation
+                                                                     target:target
+                                                                 attributes:attributes];
+    NSError *error = nil;
+    BOOL acquired = [assertion acquireWithError:&error];
+    if (acquired) {
+        [self.childProcessAssertions addObject:assertion];
+        NSLog(@"[LiveContainer] Foreground assertion acquired for pid %d", pid);
+    } else {
+        NSLog(@"[LiveContainer] Failed to acquire assertion for pid %d: %@", pid, error);
+    }
+}
+
+- (NSArray<NSNumber *> *)findChildProcessesOfPid:(pid_t)parentPid {
+    // Use sysctl to find all processes, then filter by parent pid
+    NSMutableArray *children = [NSMutableArray array];
+
+    int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0};
+    size_t size = 0;
+    if (sysctl(mib, 4, NULL, &size, NULL, 0) != 0) return children;
+
+    struct kinfo_proc *procs = (struct kinfo_proc *)malloc(size);
+    if (!procs) return children;
+
+    if (sysctl(mib, 4, procs, &size, NULL, 0) == 0) {
+        int count = (int)(size / sizeof(struct kinfo_proc));
+        for (int i = 0; i < count; i++) {
+            pid_t ppid = procs[i].kp_eproc.e_ppid;
+            pid_t pid = procs[i].kp_proc.p_pid;
+            if (ppid == parentPid && pid != parentPid) {
+                [children addObject:@(pid)];
+            }
+        }
+    }
+    free(procs);
+    return children;
+}
+
+- (void)invalidateChildProcessAssertions {
+    [self.childProcessMonitorTimer invalidate];
+    self.childProcessMonitorTimer = nil;
+    for (RBSAssertion *assertion in self.childProcessAssertions) {
+        [assertion invalidate];
+    }
+    [self.childProcessAssertions removeAllObjects];
 }
 
 @end
