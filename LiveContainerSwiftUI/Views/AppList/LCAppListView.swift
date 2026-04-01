@@ -94,12 +94,14 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
     @AppStorage("LCLaunchInMultitaskMode") var launchInMultitaskMode = false
     
     @State private var isViewAppeared = false
+    
+    @ObservedObject var searchContext = SearchContext()
+    
+    // Multi-select deletion
     @State private var isMultiSelectMode = false
     @State private var selectedAppsForDeletion: Set<LCAppModel> = []
     @StateObject private var multiDeleteConfirmAlert = YesNoHelper()
     @StateObject private var multiDeleteDataAlert = YesNoHelper()
-    
-    @ObservedObject var searchContext = SearchContext()
 
  //⭐️⭐️⭐️Switch mode
    var currentLaunchMode: AppLaunchMode {
@@ -203,6 +205,24 @@ func setMode(_ mode: AppLaunchMode) {
                     // Use filteredApps instead of sharedModel.apps
                     ForEach(filteredApps, id: \.self) { app in
                         LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames)
+                            .overlay(alignment: .leading) {
+                                if isMultiSelectMode {
+                                    Image(systemName: selectedAppsForDeletion.contains(app) ? "checkmark.circle.fill" : "circle")
+                                        .foregroundColor(selectedAppsForDeletion.contains(app) ? .red : .secondary)
+                                        .font(.title2)
+                                        .padding(.leading, 4)
+                                }
+                            }
+                            .onTapGesture {
+                                if isMultiSelectMode {
+                                    if selectedAppsForDeletion.contains(app) {
+                                        selectedAppsForDeletion.remove(app)
+                                    } else {
+                                        selectedAppsForDeletion.insert(app)
+                                    }
+                                }
+                            }
+                            .allowsHitTesting(!isMultiSelectMode)
                     }
                     .transition(.scale)
                 }
@@ -336,6 +356,29 @@ func setMode(_ mode: AppLaunchMode) {
                 }
                 
                 ToolbarItem(placement: .topBarTrailing) {
+                    if isMultiSelectMode {
+                        Button(role: .destructive) {
+                            Task { await deleteSelectedApps() }
+                        } label: {
+                            Label("lc.appList.deleteSelected".loc, systemImage: "trash")
+                                .foregroundColor(selectedAppsForDeletion.isEmpty ? .secondary : .red)
+                        }
+                        .disabled(selectedAppsForDeletion.isEmpty)
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        withAnimation {
+                            isMultiSelectMode.toggle()
+                            if !isMultiSelectMode { selectedAppsForDeletion.removeAll() }
+                        }
+                    } label: {
+                        Label(isMultiSelectMode ? "lc.common.cancel".loc : "lc.appList.selectApps".loc,
+                              systemImage: isMultiSelectMode ? "xmark.circle" : "checkmark.circle")
+                    }
+                }
+                
+                ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Picker("Sort by", selection: $sharedAppSortManager.appSortType) {
                             ForEach(AppSortType.allCases, id: \.self) { sortType in
@@ -359,29 +402,6 @@ func setMode(_ mode: AppLaunchMode) {
                         }
                     } label: {
                         Label("lc.appList.sort".loc, systemImage: "line.3.horizontal.decrease.circle")
-                    }
-                }
-
-                ToolbarItem(placement: .topBarTrailing) {
-                    if isMultiSelectMode {
-                        Button(role: .destructive) {
-                            Task { await deleteSelectedApps() }
-                        } label: {
-                            Label("lc.appList.deleteSelected".loc, systemImage: "trash")
-                                .foregroundColor(selectedAppsForDeletion.isEmpty ? .secondary : .red)
-                        }
-                        .disabled(selectedAppsForDeletion.isEmpty)
-                    }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        withAnimation {
-                            isMultiSelectMode.toggle()
-                            if !isMultiSelectMode { selectedAppsForDeletion.removeAll() }
-                        }
-                    } label: {
-                        Label(isMultiSelectMode ? "lc.common.cancel".loc : "lc.appList.selectApps".loc,
-                              systemImage: isMultiSelectMode ? "xmark.circle" : "checkmark.circle")
                     }
                 }
             }
@@ -451,17 +471,13 @@ func setMode(_ mode: AppLaunchMode) {
             }
         }
         .alert("lc.appList.deleteSelectedConfirm".loc, isPresented: $multiDeleteConfirmAlert.show) {
-            Button(role: .destructive) { multiDeleteConfirmAlert.close(result: true) } label: {
-                Text("lc.common.delete".loc)
-            }
+            Button(role: .destructive) { multiDeleteConfirmAlert.close(result: true) } label: { Text("lc.common.delete".loc) }
             Button("lc.common.cancel".loc, role: .cancel) { multiDeleteConfirmAlert.close(result: false) }
         } message: {
-            Text("lc.appList.deleteSelectedMessage \(selectedAppsForDeletion.count)".localizeWithFormat(selectedAppsForDeletion.count))
+            Text("lc.appList.deleteSelectedMessage %lld".localizeWithFormat(selectedAppsForDeletion.count))
         }
         .alert("lc.appList.removeFolderTitle".loc, isPresented: $multiDeleteDataAlert.show) {
-             Button(role: .destructive) { multiDeleteDataAlert.close(result: true) } label: {
-                Text("lc.common.yes".loc)
-            }
+            Button(role: .destructive) { multiDeleteDataAlert.close(result: true) } label: { Text("lc.common.yes".loc) }
             Button("lc.common.no".loc) { multiDeleteDataAlert.close(result: false) }
         } message: {
             Text("lc.appBanner.confirmRemoveFolder".loc)
@@ -1068,42 +1084,6 @@ func setMode(_ mode: AppLaunchMode) {
             
         }
     }
-
-    func deleteSelectedApps() async {
-        guard !selectedAppsForDeletion.isEmpty else { return }
-        guard let confirmed = await multiDeleteConfirmAlert.open(), confirmed else { return }
-    
-        let hasContainers = selectedAppsForDeletion.contains { !$0.appInfo.containers.isEmpty }
-        var removeData = false
-        if hasContainers {
-            removeData = (await multiDeleteDataAlert.open()) ?? false
-        }
-    
-        let fm = FileManager()
-        for app in selectedAppsForDeletion {
-            do {
-                try fm.removeItem(atPath: app.appInfo.bundlePath()!)
-                removeApp(app: app)
-                if removeData {
-                    for container in app.appInfo.containers {
-                        if fm.fileExists(atPath: container.containerURL.path) {
-                            try? fm.removeItem(at: container.containerURL)
-                        }
-                        LCUtils.removeAppKeychain(dataUUID: container.folderName)
-                        DispatchQueue.main.async {
-                            self.appDataFolderNames.removeAll { $0 == container.folderName }
-                        }
-                    }
-                }
-            } catch {
-                // continue deleting others even if one fails
-            }
-        }
-        withAnimation {
-            isMultiSelectMode = false
-            selectedAppsForDeletion.removeAll()
-        }
-    }
     
     func changeAppVisibility(app: LCAppModel) {
         DispatchQueue.main.async {
@@ -1377,6 +1357,42 @@ func setMode(_ mode: AppLaunchMode) {
                     Task { await installFromUrl(urlStr: installUrl) }
                 }
             }
+        }
+    }
+    
+    func deleteSelectedApps() async {
+        guard !selectedAppsForDeletion.isEmpty else { return }
+        guard let confirmed = await multiDeleteConfirmAlert.open(), confirmed else { return }
+        
+        let hasContainers = selectedAppsForDeletion.contains { !$0.appInfo.containers.isEmpty }
+        var removeData = false
+        if hasContainers {
+            removeData = (await multiDeleteDataAlert.open()) ?? false
+        }
+        
+        let fm = FileManager()
+        for app in selectedAppsForDeletion {
+            do {
+                try fm.removeItem(atPath: app.appInfo.bundlePath()!)
+                removeApp(app: app)
+                if removeData {
+                    for container in app.appInfo.containers {
+                        if fm.fileExists(atPath: container.containerURL.path) {
+                            try? fm.removeItem(at: container.containerURL)
+                        }
+                        LCUtils.removeAppKeychain(dataUUID: container.folderName)
+                        DispatchQueue.main.async {
+                            self.appDataFolderNames.removeAll { $0 == container.folderName }
+                        }
+                    }
+                }
+            } catch {
+                // continue deleting others even if one fails
+            }
+        }
+        withAnimation {
+            isMultiSelectMode = false
+            selectedAppsForDeletion.removeAll()
         }
     }
     
