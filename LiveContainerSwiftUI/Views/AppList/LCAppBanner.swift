@@ -38,6 +38,7 @@ struct LCAppBanner : View {
     @AppStorage("dynamicColors", store: LCUtils.appGroupUserDefault) var dynamicColors = true
     @AppStorage("darkModeIcon", store: LCUtils.appGroupUserDefault) var darkModeIcon = false
     @AppStorage("LCLaunchInMultitaskMode") var launchInMultitaskMode = false
+    @AppStorage("LCShowExitButton") var showExitButton = true
     @State private var mainColor : Color
     @State private var icon: UIImage
     
@@ -232,10 +233,18 @@ struct LCAppBanner : View {
         }
 
         // Exit-app overlay button — top-left corner, only visible when app is running
-        if model.isAppRunning {
+        if model.isAppRunning && showExitButton {
             Button {
+                // Clear guest app selection so LC relaunches as itself
                 UserDefaults.standard.removeObject(forKey: "selected")
                 UserDefaults.standard.removeObject(forKey: "selectedContainer")
+                // Restore global iPhone/native mode (don't leave forced iPhone mode active in LC)
+                let globalIPhoneMode = LCUtils.appGroupUserDefault.bool(forKey: "LCRealIPhoneMode")
+                if !globalIPhoneMode {
+                    // The app may have set LCRealIPhoneMode=true via forceIPhoneMode; restore it
+                    // to whatever the user set globally (not per-app)
+                    LCUtils.appGroupUserDefault.set(false, forKey: "LCRealIPhoneMode")
+                }
                 LCSharedUtils.launchToGuestApp()
             } label: {
                 Image(systemName: "xmark.circle.fill")
