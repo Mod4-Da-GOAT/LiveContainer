@@ -30081,6 +30081,94 @@
           }
         }
       }
+    },
+    "lc.appSettings.customUrlSchemes": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom URL Schemes"
+          }
+        }
+      }
+    },
+    "lc.appSettings.addUrlScheme": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add URL Scheme"
+          }
+        }
+      }
+    },
+    "lc.appSettings.applyAndReinstall": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apply & Reinstall"
+          }
+        }
+      }
+    },
+    "lc.appSettings.customUrlSchemesDesc": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add custom URL schemes this app should handle. Changes take effect after reinstalling."
+          }
+        }
+      }
+    },
+    "lc.appSettings.enterUrlScheme": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter URL Scheme"
+          }
+        }
+      }
+    },
+    "lc.appSettings.reservedUrlSchemeError": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This URL scheme is reserved and cannot be added."
+          }
+        }
+      }
+    },
+    "lc.appList.removeFolderTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete Data Folders?"
+          }
+        }
+      }
+    },
+    "lc.appBanner.confirmRemoveFolder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Do you also want to delete the data folders for the selected apps? You can keep them for future use."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
