@@ -30169,6 +30169,17 @@
           }
         }
       }
+    },
+    "lc.appSettings.showExitButton": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Exit App Button"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
