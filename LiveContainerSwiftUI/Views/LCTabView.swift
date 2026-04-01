@@ -29,7 +29,10 @@ struct LCTabView: View {
             let appListView = LCAppListView(appDataFolderNames: $appDataFolderNames, tweakFolderNames: $tweakFolderNames)
             let sourcesView = LCSourcesView()
             if #available(iOS 19.0, *), SharedModel.isLiquidGlassSearchEnabled {
-                TabView(selection: $sharedModel.selectedTab) {
+                TabView(selection: Binding(
+                    get: { sharedModel.selectedTab },
+                    set: { if !sharedModel.isMultiSelectMode { sharedModel.selectedTab = $0 } }
+                )) {
                     if DataManager.shared.model.multiLCStatus != 2 {
                         Tab("lc.tabView.sources".loc, systemImage: "books.vertical", value: LCTabIdentifier.sources) {
                             sourcesView
@@ -58,7 +61,10 @@ struct LCTabView: View {
                     }
                 }
             } else {
-                TabView(selection: $sharedModel.selectedTab) {
+                TabView(selection: Binding(
+                    get: { sharedModel.selectedTab },
+                    set: { if !sharedModel.isMultiSelectMode { sharedModel.selectedTab = $0 } }
+                )) {
                     if DataManager.shared.model.multiLCStatus != 2 {
                         sourcesView
                             .tabItem {
