@@ -1172,7 +1172,7 @@ func setMode(_ mode: AppLaunchMode) {
                             return app.appInfo.urlSchemes().contains("stosdebug") &&
                             (sharedModel.multiLCStatus != 2 || app.appInfo.isShared)
                         }) {
-                            if var url = URL(string: "stosdebug://enableJIT?bundleId=\(Bundle.main.bundleIdentifier!)&appName=\(appName)&pid=\(pid)&relaunchApp=false\(encoded)") {
+                            if var url = URL(string: "stosdebug://enableJIT?bundleId=\(Bundle.main.bundleIdentifier!)&appName=\(appName)&pid=\(pid)&relaunchApp=false& forcePID=true\(encoded)") {
                                 Task { await openWebView(urlString: url.absoluteString) }
                             }
                         } else {
@@ -1181,10 +1181,11 @@ func setMode(_ mode: AppLaunchMode) {
                             return
                         }
                     } else {
-                        if var url = URL(string: "stosdebug://enableJIT?bundleId=\(Bundle.main.bundleIdentifier!)&appName=\(appName)&pid=\(pid)\(encoded)") {
+                        if var url = URL(string: "stosdebug://enableJIT?bundleId=\(Bundle.main.bundleIdentifier!)&appName=\(appName)&pid=\(pid)&forcePID=true\(encoded)") {
                             UIApplication.shared.open(url)
                         }
                     }
+                    return
                 }
 
                 let encoded = encodedData.map { "&script-data=\($0)" } ?? ""
