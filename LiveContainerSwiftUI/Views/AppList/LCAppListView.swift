@@ -97,6 +97,9 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
     
     @ObservedObject var searchContext = SearchContext()
     
+    // Exit button overlay
+    @AppStorage("LCShowExitButton") private var showExitButton = true
+
     // Multi-select deletion
     @State private var isMultiSelectMode = false
     @State private var selectedAppsForDeletion: Set<LCAppModel> = []
@@ -192,6 +195,7 @@ func setMode(_ mode: AppLaunchMode) {
     }
     
     var body: some View {
+        ZStack(alignment: .bottom) {
         NavigationView {
             ScrollView {
                 NavigationLink(
@@ -205,8 +209,8 @@ func setMode(_ mode: AppLaunchMode) {
                 .hidden()
                 .disabled(isMultiSelectMode)
                 
-                LazyVStack(spacing: 8) {
-                    ForEach(filteredApps, id: \.self) { app in
+                VStack(spacing: 8) {
+                    ForEach(filteredApps), id: \.self) { app in
                         appRow(app: app, isHidden: false)
                     }
                 }
@@ -216,7 +220,7 @@ func setMode(_ mode: AppLaunchMode) {
                 VStack {
                     if LCUtils.appGroupUserDefault.bool(forKey: "LCStrictHiding") {
                         if sharedModel.isHiddenAppUnlocked {
-                            LazyVStack(spacing: 8) {
+                            VStack(spacing: 8) {
                                 HStack {
                                     Text("lc.appList.hiddenApps".loc)
                                         .font(.system(.title2).bold())
@@ -237,7 +241,7 @@ func setMode(_ mode: AppLaunchMode) {
                             }
                         }
                     } else if sharedModel.hiddenApps.count > 0 {
-                        LazyVStack(spacing: 8) {
+                        VStack(spacing: 8) {
                             HStack {
                                 Text("lc.appList.hiddenApps".loc)
                                     .font(.system(.title2).bold())
@@ -417,8 +421,43 @@ func setMode(_ mode: AppLaunchMode) {
                     }
                 }
             }
+            .transaction { t in
+                // Suppress toolbar animation during navigation push/pop
+                if isNavigationActive { t.animation = nil }
+            }
         }
         .navigationViewStyle(StackNavigationViewStyle())
+
+        // Floating exit-app button — appears over LC's UI when any app is running in multitask
+        if showExitButton {
+            let runningApp = sharedModel.apps.first(where: { $0.isAppRunning })
+                          ?? sharedModel.hiddenApps.first(where: { $0.isAppRunning })
+            if let runningApp {
+                HStack {
+                    Spacer()
+                    Button {
+                        UserDefaults.standard.removeObject(forKey: "selected")
+                        UserDefaults.standard.removeObject(forKey: "selectedContainer")
+                        LCUtils.appGroupUserDefault.set(false, forKey: "LCRealIPhoneMode")
+                        LCSharedUtils.launchToGuestApp()
+                    } label: {
+                        Label("lc.appList.returnToApp".loc, systemImage: "arrow.uturn.backward.circle.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Capsule().fill(Color.red))
+                            .foregroundColor(.white)
+                            .shadow(radius: 4)
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    Spacer()
+                }
+                .padding(.bottom, 90)
+                .animation(.spring(response: 0.4, dampingFraction: 0.7), value: runningApp.isAppRunning)
+            }
+        }
+
+        } // end ZStack
         .alert("lc.common.error".loc, isPresented: $errorShow){
             Button("lc.common.ok".loc, action: {
             })
@@ -1285,6 +1324,13 @@ func setMode(_ mode: AppLaunchMode) {
     }
     
     func openNavigationView(view: AnyView) {
+        // Cancel multi-select mode before pushing a new view to avoid toolbar glitch
+        if isMultiSelectMode {
+            isMultiSelectMode = false
+            selectedAppsForDeletion.removeAll()
+            deleteAppData = false
+            sharedModel.isMultiSelectMode = false
+        }
         navigateTo = view
         isNavigationActive = true
     }
