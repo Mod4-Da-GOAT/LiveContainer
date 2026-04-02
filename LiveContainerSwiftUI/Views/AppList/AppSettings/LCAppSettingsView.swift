@@ -1899,11 +1899,6 @@ struct LCAppSettingsView: View {
             settingsSecuritySections
             settingsLockSections
             settingsBottomSections
-        }        Form {
-            settingsTopSections
-            settingsSecuritySections
-            settingsLockSections
-            settingsBottomSections
         }
         .navigationTitle(appInfo.displayName())
         .navigationBarTitleDisplayMode(.inline)
