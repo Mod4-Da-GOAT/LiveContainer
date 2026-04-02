@@ -30180,6 +30180,17 @@
           }
         }
       }
+    },
+    "lc.appList.returnToApp": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return to App"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
