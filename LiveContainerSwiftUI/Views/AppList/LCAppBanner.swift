@@ -232,19 +232,14 @@ struct LCAppBanner : View {
                 }
         }
 
-        // Exit-app overlay button — top-left corner, only visible when app is running
-        if model.isAppRunning && showExitButton {
+        // Exit-app / cancel-launch button — top-left, visible when running or signing
+        if (model.isAppRunning || model.isSigningInProgress) && showExitButton {
             Button {
-                // Clear guest app selection so LC relaunches as itself
+                // Clear guest app selection so LC relaunches as itself, not the guest
                 UserDefaults.standard.removeObject(forKey: "selected")
                 UserDefaults.standard.removeObject(forKey: "selectedContainer")
-                // Restore global iPhone/native mode (don't leave forced iPhone mode active in LC)
-                let globalIPhoneMode = LCUtils.appGroupUserDefault.bool(forKey: "LCRealIPhoneMode")
-                if !globalIPhoneMode {
-                    // The app may have set LCRealIPhoneMode=true via forceIPhoneMode; restore it
-                    // to whatever the user set globally (not per-app)
-                    LCUtils.appGroupUserDefault.set(false, forKey: "LCRealIPhoneMode")
-                }
+                // Reset forced iPhone mode so LC doesn't open in iPhone layout
+                LCUtils.appGroupUserDefault.set(false, forKey: "LCRealIPhoneMode")
                 LCSharedUtils.launchToGuestApp()
             } label: {
                 Image(systemName: "xmark.circle.fill")
