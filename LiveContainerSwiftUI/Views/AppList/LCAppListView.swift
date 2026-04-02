@@ -212,7 +212,7 @@ func setMode(_ mode: AppLaunchMode) {
                 .disabled(isMultiSelectMode)
                 
                 VStack(spacing: 8) {
-                    ForEach(filteredApps), id: \.self) { app in
+                    ForEach(filteredApps, id: \.self) { app in
                         appRow(app: app, isHidden: false)
                     }
                 }
