@@ -99,6 +99,8 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
     
     // Exit button overlay
     @AppStorage("LCShowExitButton") private var showExitButton = true
+    // Used to force NavigationView redraw on pop and prevent toolbar animation glitch
+    @State private var navRefreshID = UUID()
     @State private var selectedAppKey: String? = UserDefaults.standard.string(forKey: "selected")
     @StateObject private var exitConfirmAlert = YesNoHelper()
 
@@ -425,17 +427,8 @@ func setMode(_ mode: AppLaunchMode) {
             }
         }
         .navigationViewStyle(StackNavigationViewStyle())
-        .onChange(of: isNavigationActive) { active in
-            // When navigation state changes, suppress toolbar animations
-            // to prevent search bar and toolbar items from glitching
-            if !active {
-                var t = Transaction()
-                t.disablesAnimations = true
-                withTransaction(t) {
-                    _ = isMultiSelectMode // touch state to force immediate redraw
-                }
-            }
-        }
+        .id(navRefreshID)
+
 
         // Floating "Return to App" button — visible in ALL modes when an app was launched
         // selectedAppKey is set when any app is running (normal, iPhone, or multitask mode)
@@ -1372,6 +1365,14 @@ func setMode(_ mode: AppLaunchMode) {
     func closeNavigationView() {
         isNavigationActive = false
         navigateTo = nil
+        // Force NavigationView to re-render without animation, fixing toolbar glitch on pop
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            var t = Transaction()
+            t.disablesAnimations = true
+            withTransaction(t) {
+                navRefreshID = UUID()
+            }
+        }
     }
     
     func copyError() {
@@ -1472,36 +1473,29 @@ func setMode(_ mode: AppLaunchMode) {
     func confirmAndReturnToApp() async {
         guard let confirmed = await exitConfirmAlert.open(), confirmed else { return }
 
-        // Find the currently running app (multitask)
-        let runningApp = sharedModel.apps.first(where: { $0.isAppRunning })
-                      ?? sharedModel.hiddenApps.first(where: { $0.isAppRunning })
-
-        if #available(iOS 16.0, *), let app = runningApp {
-            // Multitask mode: bring the running app's window to front
-            let container = app.uiSelectedContainer?.folderName ?? ""
-            var brought = false
-            if #available(iOS 16.1, *) {
-                brought = MultitaskWindowManager.openExistingAppWindow(dataUUID: container)
+        // ── Multitask path ──
+        // Check every app container to see if MultitaskManager tracks it as running
+        if #available(iOS 16.0, *) {
+            let allApps = sharedModel.apps + sharedModel.hiddenApps
+            for app in allApps {
+                for container in app.appInfo.containers {
+                    let uuid = container.folderName
+                    guard MultitaskManager.isUsing(container: uuid) else { continue }
+                    var brought = false
+                    if #available(iOS 16.1, *) {
+                        brought = MultitaskWindowManager.openExistingAppWindow(dataUUID: uuid)
+                    }
+                    if !brought {
+                        brought = MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: uuid)
+                    }
+                    if brought { return }
+                }
             }
-            if !brought {
-                brought = MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: container)
-            }
-            if brought { return }
-            // If bring-to-front failed, fall through to relaunch
         }
 
-        // Single-app / normal / forced-iPhone mode:
-        // "selected" is already set in UserDefaults — launchToGuestApp() will restart the guest.
-        // Only reset LCRealIPhoneMode if this specific app was NOT using forced iPhone mode,
-        // so we don't break apps that legitimately need iPhone layout.
-        if let app = runningApp {
-            if !app.uiForceIPhoneMode {
-                LCUtils.appGroupUserDefault.set(false, forKey: "LCRealIPhoneMode")
-            }
-        } else {
-            // No tracked running app — safe to reset
-            LCUtils.appGroupUserDefault.set(false, forKey: "LCRealIPhoneMode")
-        }
+        // ── Normal / single-app path ──
+        // "selected" is already set in UserDefaults by runApp() before the process was killed.
+        // launchToGuestApp() will relaunch the process which reads "selected" and boots the app.
         LCSharedUtils.launchToGuestApp()
     }
 
