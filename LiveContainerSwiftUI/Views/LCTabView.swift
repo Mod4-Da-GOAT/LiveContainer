@@ -13,10 +13,10 @@ private struct TabBarInteractionBlocker: UIViewRepresentable {
     var isBlocked: Bool
 
     func makeUIView(context: Context) -> UIView {
-        let view = UIView()
-        view.backgroundColor = .clear
-        view.isUserInteractionEnabled = false
-        return view
+        let v = UIView()
+        v.backgroundColor = .clear
+        v.isUserInteractionEnabled = false
+        return v
     }
 
     func updateUIView(_ uiView: UIView, context: Context) {
@@ -24,40 +24,32 @@ private struct TabBarInteractionBlocker: UIViewRepresentable {
             guard let windowScene = UIApplication.shared.connectedScenes
                     .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene,
                   let window = windowScene.windows.first(where: { $0.isKeyWindow }) else { return }
-            let rootVC = window.rootViewController
-            // Walk VC hierarchy for UITabBarController
-            if let rootVC { Self.setTabBarEnabled(!isBlocked, in: rootVC) }
-            // Also walk UIView hierarchy directly — covers iPadOS 26 new tab bar rendering
-            Self.setTabBarsEnabled(!isBlocked, in: window)
-        }
-    }
-
-    // Walk UIViewController hierarchy
-    private static func setTabBarEnabled(_ enabled: Bool, in vc: UIViewController) {
-        if let tabBarVC = vc as? UITabBarController {
-            tabBarVC.tabBar.isUserInteractionEnabled = enabled
-            for subview in tabBarVC.tabBar.subviews {
-                subview.isUserInteractionEnabled = enabled
+            // Walk both VC and view hierarchies to cover all iOS versions
+            if let rootVC = window.rootViewController {
+                Self.blockInVC(!isBlocked, vc: rootVC)
             }
-        }
-        for child in vc.children {
-            setTabBarEnabled(enabled, in: child)
-        }
-        if let presented = vc.presentedViewController {
-            setTabBarEnabled(enabled, in: presented)
+            Self.blockTabViews(!isBlocked, in: window)
         }
     }
 
-    // Walk UIView hierarchy — finds UITabBar in iPadOS 26 floating pill
-    private static func setTabBarsEnabled(_ enabled: Bool, in view: UIView) {
-        if let tabBar = view as? UITabBar {
-            tabBar.isUserInteractionEnabled = enabled
-            // Also block the window-level tab bar container used in iPadOS 26
-            tabBar.superview?.isUserInteractionEnabled = enabled
+    // VC hierarchy — covers UITabBarController on iPhone/standard iPad
+    private static func blockInVC(_ enabled: Bool, vc: UIViewController) {
+        if let tbc = vc as? UITabBarController {
+            tbc.tabBar.isUserInteractionEnabled = enabled
         }
-        for subview in view.subviews {
-            setTabBarsEnabled(enabled, in: subview)
+        for child in vc.children { blockInVC(enabled, vc: child) }
+        if let pvc = vc.presentedViewController { blockInVC(enabled, vc: pvc) }
+    }
+
+    // UIView hierarchy — covers iPadOS 26 new Tab bar (private UIKit class, not UITabBar subclass)
+    // We match by class name containing "TabBar" to future-proof across private API renames.
+    private static func blockTabViews(_ enabled: Bool, in view: UIView) {
+        let className = NSStringFromClass(type(of: view))
+        // Match UITabBar AND any private SwiftUI/UIKit tab bar container
+        if view is UITabBar || className.contains("TabBar") || className.contains("UITabSidebar") {
+            view.isUserInteractionEnabled = enabled
         }
+        for sub in view.subviews { blockTabViews(enabled, in: sub) }
     }
 }
 
