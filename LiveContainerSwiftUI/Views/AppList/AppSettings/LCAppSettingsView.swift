@@ -1893,7 +1893,7 @@ struct LCAppSettingsView: View {
     
     var body: some View { settingsForm }
 
-    private var settingsForm: some View {
+    private var settingsFormBase: some View {
         Form {
             settingsTopSections
             settingsSecuritySections
@@ -1911,13 +1911,16 @@ struct LCAppSettingsView: View {
                 $0
             }
         }
+    }
+
+    private var settingsFormAlerts: some View {
+        settingsFormBase
         .alert("lc.common.error".loc, isPresented: $errorShow) {
             Button("lc.common.ok".loc, action: {
             })
         } message: {
             Text(errorInfo)
         }
-        
         .textFieldAlert(
             isPresented: $renameFolderInput.show,
             title: "lc.common.enterNewFolderName".loc,
@@ -1966,6 +1969,10 @@ struct LCAppSettingsView: View {
         } message: {
             Text("lc.appSettings.toPrivateAppDesc".loc)
         }
+    }
+
+    private var settingsForm: some View {
+        settingsFormAlerts
         .alert("lc.appSettings.forceSign".loc, isPresented: $signUnsignedAlert.show) {
             Button {
                 self.signUnsignedAlert.close(result: true)
