@@ -8,6 +8,44 @@
 import Foundation
 import SwiftUI
 
+/// Finds and enables/disables the UITabBar in the view hierarchy
+private struct TabBarInteractionBlocker: UIViewRepresentable {
+    var isBlocked: Bool
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .clear
+        view.isUserInteractionEnabled = false
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        // Walk up/down the hierarchy to find UITabBarController
+        DispatchQueue.main.async {
+            guard let windowScene = UIApplication.shared.connectedScenes
+                    .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene,
+                  let rootVC = windowScene.windows.first(where: { $0.isKeyWindow })?.rootViewController else {
+                return
+            }
+            Self.setTabBarEnabled(!isBlocked, in: rootVC)
+        }
+    }
+
+    private static func setTabBarEnabled(_ enabled: Bool, in vc: UIViewController) {
+        if let tabBarVC = vc as? UITabBarController {
+            tabBarVC.tabBar.isUserInteractionEnabled = enabled
+            // Also disable the tab bar item views directly for iOS 18 floating pill
+            for subview in tabBarVC.tabBar.subviews {
+                subview.isUserInteractionEnabled = enabled
+            }
+            return
+        }
+        for child in vc.children {
+            setTabBarEnabled(enabled, in: child)
+        }
+    }
+}
+
 struct LCTabView: View {
     @Binding var appDataFolderNames: [String]
     @Binding var tweakFolderNames: [String]
@@ -127,14 +165,18 @@ struct LCTabView: View {
             dispatchURL(url: url)
         }
 
-        // Transparent overlay blocks tab bar touches during multi-select mode
+        // Block tab bar on ALL device types (iPhone bottom bar + iPad top pill/sidebar)
+        TabBarInteractionBlocker(isBlocked: sharedModel.isMultiSelectMode)
+            .frame(width: 0, height: 0)
+
+        // Also cover iPhone bottom tab bar with a transparent touch-eating overlay
         if sharedModel.isMultiSelectMode {
             Color.clear
                 .frame(maxWidth: .infinity)
                 .frame(height: 83)
                 .contentShape(Rectangle())
                 .allowsHitTesting(true)
-                .onTapGesture { }  // consume taps silently
+                .onTapGesture { }
         }
         } // end ZStack
     }
