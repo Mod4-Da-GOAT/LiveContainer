@@ -2178,13 +2178,6 @@ struct LCAppSettingsView: View {
                     Text("lc.appSettings.hideLiveContainer".loc)
                 }
 
-                Toggle(isOn: Binding(
-                    get: { UserDefaults.standard.bool(forKey: "LCShowExitButton") },
-                    set: { UserDefaults.standard.set($0, forKey: "LCShowExitButton") }
-                )) {
-                    Text("lc.appSettings.showExitButton".loc)
-                }
-
                 Toggle(isOn: $model.uiDontInjectTweakLoader) {
                     Text("lc.appSettings.dontInjectTweakLoader".loc)
                 }
