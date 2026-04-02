@@ -25,6 +25,7 @@ struct LCTabView: View {
 
     
     var body: some View {
+        ZStack(alignment: .bottom) {
         Group {
             let appListView = LCAppListView(appDataFolderNames: $appDataFolderNames, tweakFolderNames: $tweakFolderNames)
             let sourcesView = LCSourcesView()
@@ -125,6 +126,17 @@ struct LCTabView: View {
         .onOpenURL { url in
             dispatchURL(url: url)
         }
+
+        // Transparent overlay blocks tab bar touches during multi-select mode
+        if sharedModel.isMultiSelectMode {
+            Color.clear
+                .frame(maxWidth: .infinity)
+                .frame(height: 83)
+                .contentShape(Rectangle())
+                .allowsHitTesting(true)
+                .onTapGesture { }  // consume taps silently
+        }
+        } // end ZStack
     }
     
     func dispatchURL(url: URL) {
