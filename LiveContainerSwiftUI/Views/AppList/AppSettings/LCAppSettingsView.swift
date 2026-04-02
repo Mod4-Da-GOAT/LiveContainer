@@ -1891,8 +1891,15 @@ struct LCAppSettingsView: View {
         _tweakFolders = tweakFolders
     }
     
-    var body: some View {
+    var body: some View { settingsForm }
+
+    private var settingsForm: some View {
         Form {
+            settingsTopSections
+            settingsSecuritySections
+            settingsLockSections
+            settingsBottomSections
+        }        Form {
             settingsTopSections
             settingsSecuritySections
             settingsLockSections
@@ -1995,6 +2002,7 @@ struct LCAppSettingsView: View {
             Task { await importDataStorage(result: result) }
         }
     }
+
 
     @ViewBuilder private var settingsTopSections: some View {
             Section {
