@@ -38,6 +38,7 @@ struct LCAppBanner : View {
     @AppStorage("dynamicColors", store: LCUtils.appGroupUserDefault) var dynamicColors = true
     @AppStorage("darkModeIcon", store: LCUtils.appGroupUserDefault) var darkModeIcon = false
     @AppStorage("LCLaunchInMultitaskMode") var launchInMultitaskMode = false
+    @AppStorage("LCShowExitButton") var showExitButton = true
     @State private var mainColor : Color
     @State private var icon: UIImage
     
@@ -60,6 +61,7 @@ struct LCAppBanner : View {
     
     var body: some View {
 
+        ZStack(alignment: .topLeading) {
         HStack {
             HStack {
                 Image(uiImage: icon)
@@ -229,6 +231,28 @@ struct LCAppBanner : View {
                     openSettings()
                 }
         }
+
+        // Exit-app / cancel-launch button — top-left, visible when running or signing
+        if (model.isAppRunning || model.isSigningInProgress) && showExitButton {
+            Button {
+                // Clear guest app selection so LC relaunches as itself, not the guest
+                UserDefaults.standard.removeObject(forKey: "selected")
+                UserDefaults.standard.removeObject(forKey: "selectedContainer")
+                // Reset forced iPhone mode so LC doesn't open in iPhone layout
+                LCUtils.appGroupUserDefault.set(false, forKey: "LCRealIPhoneMode")
+                LCSharedUtils.launchToGuestApp()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(.white, Color.red)
+                    .shadow(radius: 2)
+            }
+            .buttonStyle(.plain)
+            .padding(6)
+            .transition(.scale.combined(with: .opacity))
+        }
+
+        } // end ZStack
         .fileExporter(
             isPresented: $saveIconExporterShow,
             document: saveIconFile,
