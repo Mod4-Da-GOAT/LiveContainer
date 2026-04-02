@@ -423,18 +423,25 @@ func setMode(_ mode: AppLaunchMode) {
                     }
                 }
             }
-            .transaction { t in
-                // Suppress toolbar animation during navigation push/pop
-                if isNavigationActive { t.animation = nil }
-            }
         }
         .navigationViewStyle(StackNavigationViewStyle())
+        .onChange(of: isNavigationActive) { active in
+            // When navigation state changes, suppress toolbar animations
+            // to prevent search bar and toolbar items from glitching
+            if !active {
+                var t = Transaction()
+                t.disablesAnimations = true
+                withTransaction(t) {
+                    _ = isMultiSelectMode // touch state to force immediate redraw
+                }
+            }
+        }
 
         // Floating "Return to App" button — visible in ALL modes when an app was launched
         // selectedAppKey is set when any app is running (normal, iPhone, or multitask mode)
         let isAnyAppActive = selectedAppKey != nil
-            || sharedModel.apps.contains(where: { $0.isAppRunning })
-            || sharedModel.hiddenApps.contains(where: { $0.isAppRunning })
+            || sharedModel.apps.contains(where: { $0.isAppRunning || $0.isSigningInProgress })
+            || sharedModel.hiddenApps.contains(where: { $0.isAppRunning || $0.isSigningInProgress })
 
         if showExitButton && isAnyAppActive {
             HStack {
@@ -586,6 +593,17 @@ func setMode(_ mode: AppLaunchMode) {
         }
         .sheet(isPresented: $customSortViewPresent) {
             LCCustomSortView()
+        }
+        .onReceive(sharedModel.$apps) { apps in
+            // When any app becomes isAppRunning=true, update selectedAppKey
+            if apps.contains(where: { $0.isAppRunning }) {
+                selectedAppKey = UserDefaults.standard.string(forKey: "selected")
+            }
+        }
+        .onReceive(sharedModel.$hiddenApps) { apps in
+            if apps.contains(where: { $0.isAppRunning }) {
+                selectedAppKey = UserDefaults.standard.string(forKey: "selected")
+            }
         }
         .onAppear() {
             // Refresh selectedAppKey every time LC appears (covers return from guest app)
@@ -1338,13 +1356,6 @@ func setMode(_ mode: AppLaunchMode) {
     }
     
     func openNavigationView(view: AnyView) {
-        // Cancel multi-select mode before pushing a new view to avoid toolbar glitch
-        if isMultiSelectMode {
-            isMultiSelectMode = false
-            selectedAppsForDeletion.removeAll()
-            deleteAppData = false
-            sharedModel.isMultiSelectMode = false
-        }
         navigateTo = view
         isNavigationActive = true
     }
@@ -1459,21 +1470,38 @@ func setMode(_ mode: AppLaunchMode) {
     }
 
     func confirmAndReturnToApp() async {
-        // Show unsaved data warning before returning to the running app
         guard let confirmed = await exitConfirmAlert.open(), confirmed else { return }
-        // In multitask mode, clear selection so we go back to LC (not re-launch the app)
-        // In single-app mode, "selected" is already set — launchToGuestApp will re-enter it
-        let isMultitask = sharedModel.apps.contains(where: { $0.isAppRunning })
-                       || sharedModel.hiddenApps.contains(where: { $0.isAppRunning })
-        if isMultitask {
-            // Clear so LC relaunches as itself (exits the multitask guest)
-            UserDefaults.standard.removeObject(forKey: "selected")
-            UserDefaults.standard.removeObject(forKey: "selectedContainer")
+
+        // Find the currently running app (multitask)
+        let runningApp = sharedModel.apps.first(where: { $0.isAppRunning })
+                      ?? sharedModel.hiddenApps.first(where: { $0.isAppRunning })
+
+        if #available(iOS 16.0, *), let app = runningApp {
+            // Multitask mode: bring the running app's window to front
+            let container = app.uiSelectedContainer?.folderName ?? ""
+            var brought = false
+            if #available(iOS 16.1, *) {
+                brought = MultitaskWindowManager.openExistingAppWindow(dataUUID: container)
+            }
+            if !brought {
+                brought = MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: container)
+            }
+            if brought { return }
+            // If bring-to-front failed, fall through to relaunch
         }
-        // Reset forced iPhone mode to avoid LC opening in iPhone layout
-        LCUtils.appGroupUserDefault.set(false, forKey: "LCRealIPhoneMode")
-        // Relaunch — if "selected" is set (single-app mode), returns to the app
-        // If cleared (multitask), relaunches as LC
+
+        // Single-app / normal / forced-iPhone mode:
+        // "selected" is already set in UserDefaults — launchToGuestApp() will restart the guest.
+        // Only reset LCRealIPhoneMode if this specific app was NOT using forced iPhone mode,
+        // so we don't break apps that legitimately need iPhone layout.
+        if let app = runningApp {
+            if !app.uiForceIPhoneMode {
+                LCUtils.appGroupUserDefault.set(false, forKey: "LCRealIPhoneMode")
+            }
+        } else {
+            // No tracked running app — safe to reset
+            LCUtils.appGroupUserDefault.set(false, forKey: "LCRealIPhoneMode")
+        }
         LCSharedUtils.launchToGuestApp()
     }
 
