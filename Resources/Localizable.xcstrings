@@ -30191,6 +30191,39 @@
           }
         }
       }
+    },
+    "lc.appList.exitAppConfirmTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return to LiveContainer?"
+          }
+        }
+      }
+    },
+    "lc.appList.exitAppConfirmMessage": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Any unsaved data in the running app may be lost."
+          }
+        }
+      }
+    },
+    "lc.appList.exitAppConfirmLeave": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leave App"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
