@@ -30170,7 +30170,7 @@
         }
       }
     },
-    "lc.appSettings.showExitButton": {
+    "lc.settings.showExitButton": {
       "extractionState": "manual",
       "localizations": {
         "en": {
