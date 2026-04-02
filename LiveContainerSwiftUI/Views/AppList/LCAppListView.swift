@@ -99,6 +99,8 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
     
     // Exit button overlay
     @AppStorage("LCShowExitButton") private var showExitButton = true
+    @State private var selectedAppKey: String? = UserDefaults.standard.string(forKey: "selected")
+    @StateObject private var exitConfirmAlert = YesNoHelper()
 
     // Multi-select deletion
     @State private var isMultiSelectMode = false
@@ -428,36 +430,46 @@ func setMode(_ mode: AppLaunchMode) {
         }
         .navigationViewStyle(StackNavigationViewStyle())
 
-        // Floating exit-app button — appears over LC's UI when any app is running in multitask
-        if showExitButton {
-            let runningApp = sharedModel.apps.first(where: { $0.isAppRunning })
-                          ?? sharedModel.hiddenApps.first(where: { $0.isAppRunning })
-            if let runningApp {
-                HStack {
-                    Spacer()
-                    Button {
-                        UserDefaults.standard.removeObject(forKey: "selected")
-                        UserDefaults.standard.removeObject(forKey: "selectedContainer")
-                        LCUtils.appGroupUserDefault.set(false, forKey: "LCRealIPhoneMode")
-                        LCSharedUtils.launchToGuestApp()
-                    } label: {
-                        Label("lc.appList.returnToApp".loc, systemImage: "arrow.uturn.backward.circle.fill")
-                            .font(.system(size: 15, weight: .semibold))
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(Capsule().fill(Color.red))
-                            .foregroundColor(.white)
-                            .shadow(radius: 4)
-                    }
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    Spacer()
+        // Floating "Return to App" button — visible in ALL modes when an app was launched
+        // selectedAppKey is set when any app is running (normal, iPhone, or multitask mode)
+        let isAnyAppActive = selectedAppKey != nil
+            || sharedModel.apps.contains(where: { $0.isAppRunning })
+            || sharedModel.hiddenApps.contains(where: { $0.isAppRunning })
+
+        if showExitButton && isAnyAppActive {
+            HStack {
+                Spacer()
+                Button {
+                    Task { await confirmAndReturnToApp() }
+                } label: {
+                    Label("lc.appList.returnToApp".loc, systemImage: "arrow.uturn.backward.circle.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Capsule().fill(Color.red))
+                        .foregroundColor(.white)
+                        .shadow(radius: 4)
                 }
-                .padding(.bottom, 90)
-                .animation(.spring(response: 0.4, dampingFraction: 0.7), value: runningApp.isAppRunning)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                Spacer()
             }
+            .padding(.bottom, 90)
+            .animation(.spring(response: 0.4, dampingFraction: 0.7), value: isAnyAppActive)
         }
 
         } // end ZStack
+        .alert("lc.appList.exitAppConfirmTitle".loc, isPresented: $exitConfirmAlert.show) {
+            Button(role: .destructive) {
+                exitConfirmAlert.close(result: true)
+            } label: {
+                Text("lc.appList.exitAppConfirmLeave".loc)
+            }
+            Button("lc.common.cancel".loc, role: .cancel) {
+                exitConfirmAlert.close(result: false)
+            }
+        } message: {
+            Text("lc.appList.exitAppConfirmMessage".loc)
+        }
         .alert("lc.common.error".loc, isPresented: $errorShow){
             Button("lc.common.ok".loc, action: {
             })
@@ -576,6 +588,8 @@ func setMode(_ mode: AppLaunchMode) {
             LCCustomSortView()
         }
         .onAppear() {
+            // Refresh selectedAppKey every time LC appears (covers return from guest app)
+            selectedAppKey = UserDefaults.standard.string(forKey: "selected")
             if !isViewAppeared {
                 if let webpageUrlStr = UserDefaults.standard.string(forKey: "webPageToOpen") {
                     Task { await openWebView(urlString: webpageUrlStr) }
@@ -1442,6 +1456,25 @@ func setMode(_ mode: AppLaunchMode) {
                 }
             }
         }
+    }
+
+    func confirmAndReturnToApp() async {
+        // Show unsaved data warning before returning to the running app
+        guard let confirmed = await exitConfirmAlert.open(), confirmed else { return }
+        // In multitask mode, clear selection so we go back to LC (not re-launch the app)
+        // In single-app mode, "selected" is already set — launchToGuestApp will re-enter it
+        let isMultitask = sharedModel.apps.contains(where: { $0.isAppRunning })
+                       || sharedModel.hiddenApps.contains(where: { $0.isAppRunning })
+        if isMultitask {
+            // Clear so LC relaunches as itself (exits the multitask guest)
+            UserDefaults.standard.removeObject(forKey: "selected")
+            UserDefaults.standard.removeObject(forKey: "selectedContainer")
+        }
+        // Reset forced iPhone mode to avoid LC opening in iPhone layout
+        LCUtils.appGroupUserDefault.set(false, forKey: "LCRealIPhoneMode")
+        // Relaunch — if "selected" is set (single-app mode), returns to the app
+        // If cleared (multitask), relaunches as LC
+        LCSharedUtils.launchToGuestApp()
     }
 
     func deleteSelectedApps() async {
