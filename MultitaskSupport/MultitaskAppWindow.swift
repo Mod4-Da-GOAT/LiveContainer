@@ -115,25 +115,25 @@ struct MultitaskAppWindow: View {
     var body: some View {
         let isVirtualWindowMode = multitaskMode == .virtualWindow
         if show, let appInfo {
-            ZStack(alignment: exitButtonOnRight ? .topTrailing : .topLeading) {
-                GeometryReader { geometry in
-                    AppSceneViewSwiftUI(show: $show, bundleId: appInfo.bundleId, dataUUID: appInfo.dataUUID, initSize: geometry.size,
-                                        onAppInitialize: { pid, error in
-                        DispatchQueue.main.async {
-                            if error == nil {
-                                self.pid = Int(pid)
-                            } else {
-                                self.errorMessage = error?.localizedDescription
-                            }
-                            DataManager.shared.model.pidCallback?(NSNumber(value: pid), error)
-                            DataManager.shared.model.pidCallback = nil
+            GeometryReader { geometry in
+                AppSceneViewSwiftUI(show: $show, bundleId: appInfo.bundleId, dataUUID: appInfo.dataUUID, initSize: geometry.size,
+                                    onAppInitialize: { pid, error in
+                    DispatchQueue.main.async {
+                        if error == nil {
+                            self.pid = Int(pid)
+                        } else {
+                            self.errorMessage = error?.localizedDescription
                         }
-                    })
-                    .background(.black)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-
-                // Exit button overlaid on top of the running app
+                        DataManager.shared.model.pidCallback?(NSNumber(value: pid), error)
+                        DataManager.shared.model.pidCallback = nil
+                    }
+                })
+                .background(.black)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .ignoresSafeArea(.all, edges: .all)
+            .overlay(alignment: exitButtonOnRight ? .topTrailing : .topLeading) {
+                // Exit button — uses overlay so it never affects the underlying layout
                 if showExitButton {
                     Button {
                         Task { await confirmExit() }
@@ -148,7 +148,6 @@ struct MultitaskAppWindow: View {
                     .padding(exitButtonOnRight ? .trailing : .leading, 16)
                 }
             }
-            .ignoresSafeArea(.all, edges: .all)
             .alert("lc.appList.exitAppConfirmTitle".loc, isPresented: $exitConfirmAlert.show) {
                 Button(role: .destructive) {
                     exitConfirmAlert.close(result: true)
