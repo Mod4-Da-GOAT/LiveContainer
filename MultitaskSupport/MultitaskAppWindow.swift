@@ -101,6 +101,9 @@ struct MultitaskAppWindow: View {
     @Environment(\.openWindow) var openWindow
     @AppStorage("LCMultitaskMode", store: LCUtils.appGroupUserDefault) var multitaskMode: MultitaskMode = .virtualWindow
     @AppStorage("LCSkipTerminatedScreen", store: LCUtils.appGroupUserDefault) var skipTerminatedScreen = false
+    @AppStorage("LCShowExitButton") var showExitButton = true
+    @AppStorage("LCExitButtonPosition") var exitButtonOnRight = false  // false = left, true = right
+    @StateObject private var exitConfirmAlert = YesNoHelper()
     let pub = NotificationCenter.default.publisher(for: UIScene.didDisconnectNotification)
     init(id: String) {
         guard let appInfo = MultitaskWindowManager.appDict[id] else {
@@ -112,23 +115,50 @@ struct MultitaskAppWindow: View {
     var body: some View {
         let isVirtualWindowMode = multitaskMode == .virtualWindow
         if show, let appInfo {
-            GeometryReader { geometry in
-                AppSceneViewSwiftUI(show: $show, bundleId: appInfo.bundleId, dataUUID: appInfo.dataUUID, initSize: geometry.size,
-                                    onAppInitialize: { pid, error in
-                    DispatchQueue.main.async {
-                        if error == nil {
-                            self.pid = Int(pid)
-                        } else {
-                            self.errorMessage = error?.localizedDescription
+            ZStack(alignment: exitButtonOnRight ? .topTrailing : .topLeading) {
+                GeometryReader { geometry in
+                    AppSceneViewSwiftUI(show: $show, bundleId: appInfo.bundleId, dataUUID: appInfo.dataUUID, initSize: geometry.size,
+                                        onAppInitialize: { pid, error in
+                        DispatchQueue.main.async {
+                            if error == nil {
+                                self.pid = Int(pid)
+                            } else {
+                                self.errorMessage = error?.localizedDescription
+                            }
+                            DataManager.shared.model.pidCallback?(NSNumber(value: pid), error)
+                            DataManager.shared.model.pidCallback = nil
                         }
-                        DataManager.shared.model.pidCallback?(NSNumber(value: pid), error)
-                        DataManager.shared.model.pidCallback = nil
+                    })
+                    .background(.black)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+
+                // Exit button overlaid on top of the running app
+                if showExitButton {
+                    Button {
+                        Task { await confirmExit() }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 28, weight: .semibold))
+                            .foregroundStyle(.white, Color.black.opacity(0.6))
+                            .shadow(color: .black.opacity(0.4), radius: 4, x: 0, y: 2)
                     }
-                })
-                .background(.black)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .buttonStyle(.plain)
+                    .padding(.top, 52)
+                    .padding(exitButtonOnRight ? .trailing : .leading, 16)
+                }
             }
             .ignoresSafeArea(.all, edges: .all)
+            .alert("lc.appList.exitAppConfirmTitle".loc, isPresented: $exitConfirmAlert.show) {
+                Button(role: .destructive) {
+                    exitConfirmAlert.close(result: true)
+                } label: { Text("lc.appList.exitAppConfirmLeave".loc) }
+                Button("lc.common.cancel".loc, role: .cancel) {
+                    exitConfirmAlert.close(result: false)
+                }
+            } message: {
+                Text("lc.appList.exitAppConfirmMessage".loc)
+            }
             .navigationTitle(Text("\(appInfo.displayName) - \(String(pid))"))
             .onReceive(pub) { out in
                 if let scene1 = sceneDelegate.window?.windowScene, let scene2 = out.object as? UIWindowScene, scene1 == scene2 {
@@ -190,6 +220,11 @@ struct MultitaskAppWindow: View {
         }
     }
     
+    private func confirmExit() async {
+        guard let confirmed = await exitConfirmAlert.open(), confirmed else { return }
+        requestSceneDestruction(isManual: true)
+    }
+
     private func requestSceneDestruction(isManual: Bool = false) {
         if isManual {
             didRequestManualClose = true
