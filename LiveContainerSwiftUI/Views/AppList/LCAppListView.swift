@@ -97,12 +97,8 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
     
     @ObservedObject var searchContext = SearchContext()
     
-    // Exit button overlay
-    @AppStorage("LCShowExitButton") private var showExitButton = true
     // Used to force NavigationView redraw on pop and prevent toolbar animation glitch
     @State private var navRefreshID = UUID()
-    @State private var selectedAppKey: String? = UserDefaults.standard.string(forKey: "selected")
-    @StateObject private var exitConfirmAlert = YesNoHelper()
 
     // Multi-select deletion
     @State private var isMultiSelectMode = false
@@ -430,46 +426,7 @@ func setMode(_ mode: AppLaunchMode) {
         .id(navRefreshID)
 
 
-        // Floating "Return to App" button — visible in ALL modes when an app was launched
-        // selectedAppKey is set when any app is running (normal, iPhone, or multitask mode)
-        let isAnyAppActive = selectedAppKey != nil
-            || sharedModel.apps.contains(where: { $0.isAppRunning || $0.isSigningInProgress })
-            || sharedModel.hiddenApps.contains(where: { $0.isAppRunning || $0.isSigningInProgress })
-
-        if showExitButton && isAnyAppActive {
-            HStack {
-                Spacer()
-                Button {
-                    Task { await confirmAndReturnToApp() }
-                } label: {
-                    Label("lc.appList.returnToApp".loc, systemImage: "arrow.uturn.backward.circle.fill")
-                        .font(.system(size: 15, weight: .semibold))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(Capsule().fill(Color.red))
-                        .foregroundColor(.white)
-                        .shadow(radius: 4)
-                }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                Spacer()
-            }
-            .padding(.bottom, 90)
-            .animation(.spring(response: 0.4, dampingFraction: 0.7), value: isAnyAppActive)
-        }
-
         } // end ZStack
-        .alert("lc.appList.exitAppConfirmTitle".loc, isPresented: $exitConfirmAlert.show) {
-            Button(role: .destructive) {
-                exitConfirmAlert.close(result: true)
-            } label: {
-                Text("lc.appList.exitAppConfirmLeave".loc)
-            }
-            Button("lc.common.cancel".loc, role: .cancel) {
-                exitConfirmAlert.close(result: false)
-            }
-        } message: {
-            Text("lc.appList.exitAppConfirmMessage".loc)
-        }
         .alert("lc.common.error".loc, isPresented: $errorShow){
             Button("lc.common.ok".loc, action: {
             })
@@ -587,20 +544,7 @@ func setMode(_ mode: AppLaunchMode) {
         .sheet(isPresented: $customSortViewPresent) {
             LCCustomSortView()
         }
-        .onReceive(sharedModel.$apps) { apps in
-            // When any app becomes isAppRunning=true, update selectedAppKey
-            if apps.contains(where: { $0.isAppRunning }) {
-                selectedAppKey = UserDefaults.standard.string(forKey: "selected")
-            }
-        }
-        .onReceive(sharedModel.$hiddenApps) { apps in
-            if apps.contains(where: { $0.isAppRunning }) {
-                selectedAppKey = UserDefaults.standard.string(forKey: "selected")
-            }
-        }
         .onAppear() {
-            // Refresh selectedAppKey every time LC appears (covers return from guest app)
-            selectedAppKey = UserDefaults.standard.string(forKey: "selected")
             if !isViewAppeared {
                 if let webpageUrlStr = UserDefaults.standard.string(forKey: "webPageToOpen") {
                     Task { await openWebView(urlString: webpageUrlStr) }
@@ -1468,35 +1412,6 @@ func setMode(_ mode: AppLaunchMode) {
                 }
             }
         }
-    }
-
-    func confirmAndReturnToApp() async {
-        guard let confirmed = await exitConfirmAlert.open(), confirmed else { return }
-
-        // ── Multitask path ──
-        // Check every app container to see if MultitaskManager tracks it as running
-        if #available(iOS 16.0, *) {
-            let allApps = sharedModel.apps + sharedModel.hiddenApps
-            for app in allApps {
-                for container in app.appInfo.containers {
-                    let uuid = container.folderName
-                    guard MultitaskManager.isUsing(container: uuid) else { continue }
-                    var brought = false
-                    if #available(iOS 16.1, *) {
-                        brought = MultitaskWindowManager.openExistingAppWindow(dataUUID: uuid)
-                    }
-                    if !brought {
-                        brought = MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: uuid)
-                    }
-                    if brought { return }
-                }
-            }
-        }
-
-        // ── Normal / single-app path ──
-        // "selected" is already set in UserDefaults by runApp() before the process was killed.
-        // launchToGuestApp() will relaunch the process which reads "selected" and boots the app.
-        LCSharedUtils.launchToGuestApp()
     }
 
     func deleteSelectedApps() async {
