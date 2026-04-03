@@ -131,7 +131,8 @@ struct MultitaskAppWindow: View {
                 .background(.black)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .ignoresSafeArea(.all, edges: .all)
+            .ignoresSafeArea(.all)
+            .navigationBarHidden(true)
             .overlay(alignment: exitButtonOnRight ? .topTrailing : .topLeading) {
                 // Exit button — uses overlay so it never affects the underlying layout
                 if showExitButton {
