@@ -171,20 +171,17 @@ struct LCTabView: View {
         .onOpenURL { url in
             dispatchURL(url: url)
         }
+        .apply {
+            if #available(iOS 16.0, *) {
+                $0.toolbar(sharedModel.isMultiSelectMode ? .hidden : .visible, for: .tabBar)
+            } else {
+                $0
+            }
+        }
 
-        // Block tab bar on ALL device types (iPhone bottom bar + iPad top pill/sidebar)
+        // UIKit-level blocker as a belt-and-suspenders fallback
         TabBarInteractionBlocker(isBlocked: sharedModel.isMultiSelectMode)
             .frame(width: 0, height: 0)
-
-        // Also cover iPhone bottom tab bar with a transparent touch-eating overlay
-        if sharedModel.isMultiSelectMode {
-            Color.clear
-                .frame(maxWidth: .infinity)
-                .frame(height: 83)
-                .contentShape(Rectangle())
-                .allowsHitTesting(true)
-                .onTapGesture { }
-        }
         } // end ZStack
     }
     
