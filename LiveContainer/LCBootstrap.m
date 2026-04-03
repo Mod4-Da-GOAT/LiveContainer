@@ -698,7 +698,7 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     
     // hook NSUserDefault before running libraries' initializers
     NUDGuestHooksInit();
-    LCExitButtonGuestHooksInit();
+    LCExitButtonGuestHooksInit(isLiveProcess);
     if(!isSideStore) {
         SecItemGuestHooksInit();
         NSFMGuestHooksInit();
