@@ -30224,6 +30224,39 @@
           }
         }
       }
+    },
+    "lc.settings.exitButtonPosition": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exit Button Position"
+          }
+        }
+      }
+    },
+    "lc.settings.exitButtonPosition.left": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Top Left"
+          }
+        }
+      }
+    },
+    "lc.settings.exitButtonPosition.right": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Top Right"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
