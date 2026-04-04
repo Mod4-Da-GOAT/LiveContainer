@@ -832,6 +832,8 @@ class AppInfoProvider {
 @available(iOS 16.0, *)
 public struct MultitaskDockSwiftView: View {
     @EnvironmentObject var dockManager: MultitaskDockManager
+    @State private var showTooltip: Bool = false  // ✅ inside
+    @State private var tooltipApp: AppInfo? = nil  // ✅ inside
     @State private var dragOffset = CGSize.zero
     @State private var isMoving: Bool = false
     
