@@ -96,6 +96,16 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
     @State private var isViewAppeared = false
     
     @ObservedObject var searchContext = SearchContext()
+    
+    // Used to force NavigationView redraw on pop and prevent toolbar animation glitch
+    @State private var navRefreshID = UUID()
+
+    // Multi-select deletion
+    @State private var isMultiSelectMode = false
+    @State private var selectedAppsForDeletion: Set<LCAppModel> = []
+    @State private var deleteAppData = false
+    @State private var isDeleting = false
+    @StateObject private var multiDeleteConfirmAlert = YesNoHelper()
 
  //⭐️⭐️⭐️Switch mode
    var currentLaunchMode: AppLaunchMode {
@@ -185,22 +195,24 @@ func setMode(_ mode: AppLaunchMode) {
     }
     
     var body: some View {
+        ZStack(alignment: .bottom) {
         NavigationView {
             ScrollView {
                 NavigationLink(
                     destination: navigateTo,
-                    isActive: $isNavigationActive,
-                    label: {
-                        EmptyView()
-                })
+                    isActive: Binding(
+                        get: { isNavigationActive && !isMultiSelectMode },
+                        set: { isNavigationActive = $0 }
+                    ),
+                    label: { EmptyView() }
+                )
                 .hidden()
+                .disabled(isMultiSelectMode)
                 
-                LazyVStack {
-                    // Use filteredApps instead of sharedModel.apps
+                VStack(spacing: 8) {
                     ForEach(filteredApps, id: \.self) { app in
-                        LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames)
+                        appRow(app: app, isHidden: false)
                     }
-                    .transition(.scale)
                 }
                 .padding()
                 .animation(searchContext.isTyping ? nil : .easeInOut, value: filteredApps)
@@ -208,7 +220,7 @@ func setMode(_ mode: AppLaunchMode) {
                 VStack {
                     if LCUtils.appGroupUserDefault.bool(forKey: "LCStrictHiding") {
                         if sharedModel.isHiddenAppUnlocked {
-                            LazyVStack {
+                            VStack(spacing: 8) {
                                 HStack {
                                     Text("lc.appList.hiddenApps".loc)
                                         .font(.system(.title2).bold())
@@ -216,10 +228,8 @@ func setMode(_ mode: AppLaunchMode) {
                                 }
                                 
                                 ForEach(filteredHiddenApps, id: \.self) { app in
-                                    LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames)
+                                    appRow(app: app, isHidden: true)
                                 }
-                                .transition(.scale)
-                                
                             }
                             .padding()
                             .transition(.opacity)
@@ -231,7 +241,7 @@ func setMode(_ mode: AppLaunchMode) {
                             }
                         }
                     } else if sharedModel.hiddenApps.count > 0 {
-                        LazyVStack {
+                        VStack(spacing: 8) {
                             HStack {
                                 Text("lc.appList.hiddenApps".loc)
                                     .font(.system(.title2).bold())
@@ -239,14 +249,16 @@ func setMode(_ mode: AppLaunchMode) {
                             }
                             ForEach(filteredHiddenApps, id: \.self) { app in
                                 if sharedModel.isHiddenAppUnlocked {
-                                    LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames)
+                                    appRow(app: app, isHidden: true)
                                 } else {
                                     LCAppSkeletonBanner()
                                 }
                             }
                             .animation(.easeInOut, value: sharedModel.isHiddenAppUnlocked)
                             .onTapGesture {
-                                Task { await authenticateUser() }
+                                if !isMultiSelectMode {
+                                    Task { await authenticateUser() }
+                                }
                             }
                         }
                         .padding()
@@ -278,88 +290,143 @@ func setMode(_ mode: AppLaunchMode) {
             
             .navigationTitle("lc.appList.myApps".loc)
             .toolbar {
+                // ── Leading: install / sidestore (hidden during multi-select) ──
                 ToolbarItem(placement: .topBarLeading) {
-                    if sharedModel.multiLCStatus != 2 {
-                        if !installprogressVisible {
-                            Menu {
-                                
-                                Button("lc.appList.installFromIpa".loc, systemImage: "doc.badge.plus", action: {
-                                    choosingIPA = true
-                                })
-                                Button("lc.appList.installFromUrl".loc, systemImage: "link.badge.plus", action: {
-                                    Task{ await startInstallFromUrl() }
-                                })
-                            } label: {
-                                Label("add", systemImage: "plus")
+                    if !isMultiSelectMode {
+                        if sharedModel.multiLCStatus != 2 {
+                            if !installprogressVisible {
+                                Menu {
+                                    Button("lc.appList.installFromIpa".loc, systemImage: "doc.badge.plus", action: {
+                                        choosingIPA = true
+                                    })
+                                    Button("lc.appList.installFromUrl".loc, systemImage: "link.badge.plus", action: {
+                                        Task{ await startInstallFromUrl() }
+                                    })
+                                } label: {
+                                    Label("add", systemImage: "plus")
+                                }
+                            } else {
+                                ProgressView().progressViewStyle(.circular).padding(.horizontal, 8)
                             }
-                            
-                        } else {
-                            ProgressView().progressViewStyle(.circular).padding(.horizontal, 8)
                         }
                     }
                 }
                 ToolbarItem(placement: .topBarLeading) {
-                    if(UserDefaults.sideStoreExist()) {
-                        Button {
-                            LCUtils.openSideStore(delegate: self)
-                        } label: {
-                            Image("SideStoreBadge")
-                                .resizable()
-                                .renderingMode(.template)
-                                .foregroundColor({
-                                    if SharedModel.isLiquidGlassEnabled {
-                                        return Color.primary
-                                    } else {
-                                        return Color.accentColor
-                                    }
-                                }())
-                                .frame(width: UIFont.preferredFont(forTextStyle: .body).lineHeight, height: UIFont.preferredFont(forTextStyle: .body).lineHeight)
-
-                        }
-                    } else {
-                        Button("Help", systemImage: "questionmark") {
-                            helpPresent = true
-                        }
-                    }
-                    
-
-                }
-                
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("lc.appList.openLink".loc, systemImage: "link", action: {
-                        Task { await onOpenWebViewTapped() }
-                    })
-                }
-                
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Picker("Sort by", selection: $sharedAppSortManager.appSortType) {
-                            ForEach(AppSortType.allCases, id: \.self) { sortType in
-                                Label(sortType.displayName, systemImage: sortType.systemImage)
-                                    .tag(sortType)
-                            }
-                        }
-                        .onChange(of: sharedAppSortManager.appSortType) { newValue in
-                            if sharedAppSortManager.appSortType == .custom {
-                                customSortViewPresent = true
-                            }
-                        }
-                        if sharedAppSortManager.appSortType == .custom {
-                            Divider()
-                            
+                    if !isMultiSelectMode {
+                        if UserDefaults.sideStoreExist() {
                             Button {
-                                customSortViewPresent = true
+                                LCUtils.openSideStore(delegate: self)
                             } label: {
-                                Label("lc.appList.sort.customManage".loc, systemImage: "slider.horizontal.3")
+                                Image("SideStoreBadge")
+                                    .resizable()
+                                    .renderingMode(.template)
+                                    .foregroundColor({
+                                        if SharedModel.isLiquidGlassEnabled {
+                                            return Color.primary
+                                        } else {
+                                            return Color.accentColor
+                                        }
+                                    }())
+                                    .frame(width: UIFont.preferredFont(forTextStyle: .body).lineHeight,
+                                           height: UIFont.preferredFont(forTextStyle: .body).lineHeight)
+                            }
+                        } else {
+                            Button("Help", systemImage: "questionmark") {
+                                helpPresent = true
                             }
                         }
+                    }
+                }
+
+                // ── Trailing: link button (hidden during multi-select) ──
+                ToolbarItem(placement: .topBarTrailing) {
+                    if !isMultiSelectMode {
+                        Button("lc.appList.openLink".loc, systemImage: "link", action: {
+                            Task { await onOpenWebViewTapped() }
+                        })
+                    }
+                }
+
+                // ── Trailing: delete-data toggle (only in multi-select) ──
+                ToolbarItem(placement: .topBarTrailing) {
+                    if isMultiSelectMode {
+                        Button {
+                            withAnimation { deleteAppData.toggle() }
+                        } label: {
+                            Image(systemName: deleteAppData ? "externaldrive.fill.badge.minus" : "externaldrive.badge.minus")
+                                .foregroundColor(deleteAppData ? .red : .secondary)
+                        }
+                        .disabled(isDeleting)
+                    }
+                }
+
+                // ── Trailing: trash button (only in multi-select) ──
+                ToolbarItem(placement: .topBarTrailing) {
+                    if isMultiSelectMode {
+                        Button {
+                            Task { await deleteSelectedApps() }
+                        } label: {
+                            Image(systemName: "trash")
+                                .foregroundColor(selectedAppsForDeletion.isEmpty || isDeleting ? .secondary : .red)
+                        }
+                        .disabled(selectedAppsForDeletion.isEmpty || isDeleting)
+                    }
+                }
+
+                // ── Trailing: select / cancel toggle ──
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        withAnimation {
+                            isMultiSelectMode.toggle()
+                            if !isMultiSelectMode {
+                                selectedAppsForDeletion.removeAll()
+                                deleteAppData = false
+                            }
+                        }
+                        sharedModel.isMultiSelectMode = isMultiSelectMode
                     } label: {
-                        Label("lc.appList.sort".loc, systemImage: "line.3.horizontal.decrease.circle")
+                        Image(systemName: isMultiSelectMode ? "xmark.circle.fill" : "checkmark.circle")
+                            .foregroundColor(isMultiSelectMode ? .red : .green)
+                            .font(.system(size: 18, weight: .semibold))
+                    }
+                    .disabled(isDeleting)
+                }
+
+                // ── Trailing: sort menu (hidden during multi-select) ──
+                ToolbarItem(placement: .topBarTrailing) {
+                    if !isMultiSelectMode {
+                        Menu {
+                            Picker("Sort by", selection: $sharedAppSortManager.appSortType) {
+                                ForEach(AppSortType.allCases, id: \.self) { sortType in
+                                    Label(sortType.displayName, systemImage: sortType.systemImage)
+                                        .tag(sortType)
+                                }
+                            }
+                            .onChange(of: sharedAppSortManager.appSortType) { newValue in
+                                if sharedAppSortManager.appSortType == .custom {
+                                    customSortViewPresent = true
+                                }
+                            }
+                            if sharedAppSortManager.appSortType == .custom {
+                                Divider()
+                                Button {
+                                    customSortViewPresent = true
+                                } label: {
+                                    Label("lc.appList.sort.customManage".loc, systemImage: "slider.horizontal.3")
+                                }
+                            }
+                        } label: {
+                            Label("lc.appList.sort".loc, systemImage: "line.3.horizontal.decrease.circle")
+                        }
                     }
                 }
             }
         }
         .navigationViewStyle(StackNavigationViewStyle())
+        .id(navRefreshID)
+
+
+        } // end ZStack
         .alert("lc.common.error".loc, isPresented: $errorShow){
             Button("lc.common.ok".loc, action: {
             })
@@ -423,6 +490,13 @@ func setMode(_ mode: AppLaunchMode) {
                 generatedIconStyleSelector.close(result: nil)
             }
         }
+        .alert("lc.appList.deleteSelectedConfirm".loc, isPresented: $multiDeleteConfirmAlert.show) {
+            Button(role: .destructive) { multiDeleteConfirmAlert.close(result: true) } label: { Text("lc.common.delete".loc) }
+            Button("lc.common.cancel".loc, role: .cancel) { multiDeleteConfirmAlert.close(result: false) }
+        } message: {
+            Text("lc.appList.deleteSelectedMessage %lld".localizeWithFormat(selectedAppsForDeletion.count))
+        }
+
         .textFieldAlert(
             isPresented: $webViewUrlInput.show,
             title:  "lc.appList.enterUrlTip".loc,
@@ -1172,7 +1246,7 @@ func setMode(_ mode: AppLaunchMode) {
                             return app.appInfo.urlSchemes().contains("stosdebug") &&
                             (sharedModel.multiLCStatus != 2 || app.appInfo.isShared)
                         }) {
-                            if var url = URL(string: "stosdebug://enableJIT?bundleId=\(Bundle.main.bundleIdentifier!)&appName=\(appName)&pid=\(pid)&relaunchApp=false& forcePID=true\(encoded)") {
+                            if let url = URL(string: "stosdebug://enableJIT?bundleId=\(Bundle.main.bundleIdentifier!)&appName=\(appName)&pid=\(pid)&relaunchApp=false& forcePID=true\(encoded)") {
                                 Task { await openWebView(urlString: url.absoluteString) }
                             }
                         } else {
@@ -1181,6 +1255,22 @@ func setMode(_ mode: AppLaunchMode) {
                             return
                         }
                     } else {
+                        if let url = URL(string: "stosdebug://enableJIT?bundleId=\(Bundle.main.bundleIdentifier!)&appName=\(appName)&pid=\(pid)&forcePID=true\(encoded)") {
+                            UIApplication.shared.open(url)
+                        }
+                    }
+                    return
+                }
+
+                let encoded = encodedData.map { "&script-data=\($0)" } ?? ""
+                if let url = URL(string: "stikjit://enable-jit?bundle-id=\(Bundle.main.bundleIdentifier!)&pid=\(pid)\(encoded)") {
+                    if jitEnabler == .StikJITLC {
+                        if let app = sharedModel.apps.first(where: { app in
+                            return app.appInfo.urlSchemes().contains("stikjit") &&
+                            (sharedModel.multiLCStatus != 2 || app.appInfo.isShared)
+                        }) {
+                            Task { await openWebView(urlString: url.absoluteString) }
+                        } else {
                         if var url = URL(string: "stosdebug://enableJIT?bundleId=\(Bundle.main.bundleIdentifier!)&appName=\(appName)&pid=\(pid)&forcePID=true\(encoded)") {
                             UIApplication.shared.open(url)
                         }
@@ -1203,6 +1293,7 @@ func setMode(_ mode: AppLaunchMode) {
                         }
                     } else {
                         UIApplication.shared.open(url)
+                        }
                     }
                 }
             }
@@ -1235,6 +1326,14 @@ func setMode(_ mode: AppLaunchMode) {
     func closeNavigationView() {
         isNavigationActive = false
         navigateTo = nil
+        // Force NavigationView to re-render without animation, fixing toolbar glitch on pop
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            var t = Transaction()
+            t.disablesAnimations = true
+            withTransaction(t) {
+                navRefreshID = UUID()
+            }
+        }
     }
     
     func copyError() {
@@ -1298,6 +1397,80 @@ func setMode(_ mode: AppLaunchMode) {
                     Task { await installFromUrl(urlStr: installUrl) }
                 }
             }
+        }
+    }
+    
+    @ViewBuilder
+    func appRow(app: LCAppModel, isHidden: Bool) -> some View {
+        ZStack(alignment: .leading) {
+            LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames)
+                .padding(.leading, isMultiSelectMode ? 36 : 0)
+                .animation(.easeInOut(duration: 0.2), value: isMultiSelectMode)
+                .allowsHitTesting(!isMultiSelectMode && !isDeleting)
+
+            if isMultiSelectMode {
+                let isSelected = selectedAppsForDeletion.contains(app)
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(isSelected ? .green : .secondary)
+                    .font(.title2)
+                    .padding(.leading, 6)
+                    .transition(.opacity.combined(with: .move(edge: .leading)))
+            }
+        }
+        .frame(height: 88)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard isMultiSelectMode, !isDeleting else { return }
+            withAnimation(.easeInOut(duration: 0.1)) {
+                if selectedAppsForDeletion.contains(app) {
+                    selectedAppsForDeletion.remove(app)
+                } else {
+                    selectedAppsForDeletion.insert(app)
+                }
+            }
+        }
+    }
+
+    func deleteSelectedApps() async {
+        guard !selectedAppsForDeletion.isEmpty else { return }
+        guard let confirmed = await multiDeleteConfirmAlert.open(), confirmed else { return }
+        
+        // Snapshot the set so UI changes mid-loop don't affect iteration
+        let appsToDelete = selectedAppsForDeletion
+        let removeData = deleteAppData
+        
+        isDeleting = true
+        
+        let fm = FileManager()
+        for app in appsToDelete {
+            guard let bundlePath = app.appInfo.bundlePath() else { continue }
+            do {
+                try fm.removeItem(atPath: bundlePath)
+                removeApp(app: app)
+                if removeData {
+                    for container in app.appInfo.containers {
+                        if fm.fileExists(atPath: container.containerURL.path) {
+                            try? fm.removeItem(at: container.containerURL)
+                        }
+                        LCUtils.removeAppKeychain(dataUUID: container.folderName)
+                        DispatchQueue.main.async {
+                            self.appDataFolderNames.removeAll { $0 == container.folderName }
+                        }
+                    }
+                }
+            } catch {
+                // continue deleting others even if one fails
+            }
+        }
+        
+        await MainActor.run {
+            withAnimation {
+                selectedAppsForDeletion.removeAll()
+                isMultiSelectMode = false
+                deleteAppData = false
+                isDeleting = false
+            }
+            sharedModel.isMultiSelectMode = false
         }
     }
     
