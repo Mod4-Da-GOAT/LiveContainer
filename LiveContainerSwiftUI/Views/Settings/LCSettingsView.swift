@@ -67,6 +67,8 @@ struct LCSettingsView: View {
     @AppStorage("selected32BitLayer") var liveExec32Path : String = ""
     #endif
     @AppStorage("LCKeepSelectedWhenQuit") var keepSelectedWhenQuit = false
+    @AppStorage("LCShowExitButton") var showExitButton = true
+    @AppStorage("LCExitButtonPosition") var exitButtonOnRight = false
     @AppStorage("LCWaitForDebugger") var waitForDebugger = false
     @AppStorage("LCSharePrivateDataWithLiveProcess") var sharePrivateDataWithLiveProcess = false
     @AppStorage("BKNoWatchdogs") var disableLiveProcessWatchdog = false
@@ -232,7 +234,15 @@ struct LCSettingsView: View {
                             Text("lc.settings.darkModeIcon".loc)
                         }
                     }
-                    
+                    Toggle(isOn: $showExitButton) {
+                        Text("lc.settings.showExitButton".loc)
+                    }
+                    if showExitButton {
+                        Picker("lc.settings.exitButtonPosition".loc, selection: $exitButtonOnRight) {
+                            Text("lc.settings.exitButtonPosition.left".loc).tag(false)
+                            Text("lc.settings.exitButtonPosition.right".loc).tag(true)
+                        }
+                    }
                 } header: {
                     Text("lc.settings.interface".loc)
                 } footer: {
