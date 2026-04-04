@@ -1271,12 +1271,29 @@ func setMode(_ mode: AppLaunchMode) {
                         }) {
                             Task { await openWebView(urlString: url.absoluteString) }
                         } else {
+                        if var url = URL(string: "stosdebug://enableJIT?bundleId=\(Bundle.main.bundleIdentifier!)&appName=\(appName)&pid=\(pid)&forcePID=true\(encoded)") {
+                            UIApplication.shared.open(url)
+                        }
+                    }
+                    return
+                }
+
+                let encoded = encodedData.map { "&script-data=\($0)" } ?? ""
+                if let url = URL(string: "stikjit://enable-jit?bundle-id=\(Bundle.main.bundleIdentifier!)&pid=\(pid)\(encoded)") {
+                    if jitEnabler == .StikJITLC {
+                        if let app = sharedModel.apps.first(where: { app in
+                            return app.appInfo.urlSchemes().contains("stikjit") &&
+                            (sharedModel.multiLCStatus != 2 || app.appInfo.isShared)
+                        }) {
+                            Task { await openWebView(urlString: url.absoluteString) }
+                        } else {
                             errorInfo = "StikDebug is not found. Please install it first and switch it to shared app."
                             errorShow = true
                             return
                         }
                     } else {
                         UIApplication.shared.open(url)
+                        }
                     }
                 }
             }
