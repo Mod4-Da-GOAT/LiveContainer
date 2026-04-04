@@ -1203,9 +1203,9 @@ class IconCacheManager {
 @available(iOS 16.0, *)
 struct AppIconView: View {
     let app: DockAppModel
-    @State private var isPressed = false
     @State private var showTooltip: Bool = false
     @State private var tooltipApp: AppInfo? = nil
+    @State private var isPressed = false
     @State private var appIcon: UIImage?
     @State private var isLoading = true
     @EnvironmentObject var dockManager: MultitaskDockManager
