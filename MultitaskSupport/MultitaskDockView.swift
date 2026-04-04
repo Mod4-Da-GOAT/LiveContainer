@@ -863,7 +863,13 @@ public struct MultitaskDockSwiftView: View {
         )
     }
 
-
+    @ViewBuilder
+    private var tooltipOverlay: some View {
+        if showTooltip, let app = tooltipApp {
+            TooltipView(app: app)
+                .transition(.opacity)
+        }
+    }
     @ViewBuilder
     private func dockStyledContent(in geometry: GeometryProxy) -> some View {
 #if compiler(>=6.2)
