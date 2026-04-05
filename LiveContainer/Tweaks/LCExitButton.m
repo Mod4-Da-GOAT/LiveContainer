@@ -11,47 +11,39 @@
 #import <signal.h>
 #import "../LCSharedUtils.h"
 
-// ─── Externs from LCBootstrap.m ──────────────────────────────
-// These are captured at LCExitButtonGuestHooksInit() time, BEFORE
-// overwriteMainCFBundle() changes NSBundle.mainBundle to the guest app
-// and BEFORE NUDGuestHooksInit() redirects standardUserDefaults.
+// ─── Externs captured at init time (before bundle/defaults swap) ───
 extern NSString       *lcAppUrlScheme;
 extern NSUserDefaults *lcUserDefaults;
 
-// Saved at init time so they remain valid after the bundle/defaults swap.
-static NSString       *g_lcScheme     = nil;
-static NSUserDefaults *g_lcDefaults   = nil;
+static NSString       *g_lcScheme   = nil;
+static NSUserDefaults *g_lcDefaults = nil;
 
-// ─── Relaunch LC ─────────────────────────────────────────────
-// Opens the LC URL scheme directly (bypassing canOpenURL which always
-// returns NO from inside the guest because livecontainer:// is not in
-// the guest app's LSApplicationQueriesSchemes) then kills this process.
-// iOS processes the queued open request and launches a fresh LC instance.
+// ─── Relaunch LC ──────────────────────────────────────────────
+// Bypasses canOpenURL (always NO from inside guest) and kills
+// the process after iOS has queued the LC relaunch request.
 static void lceb_relaunchLC(void) {
     NSString *scheme = g_lcScheme ?: @"livecontainer";
-    NSURL    *url    = [NSURL URLWithString:
-                        [NSString stringWithFormat:@"%@://livecontainer-relaunch", scheme]];
+    NSURL *url = [NSURL URLWithString:
+        [NSString stringWithFormat:@"%@://livecontainer-relaunch", scheme]];
     UIApplication *app = [NSClassFromString(@"UIApplication") sharedApplication];
 
-    // Two opens, same as launchToGuestApp(tries=2)
-    [app openURL:url options:@{} completionHandler:nil];
-    [app openURL:url options:@{} completionHandler:nil];
-
-    // Short delay so iOS can queue the request, then kill this process
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
+    // Open inside completionHandler chain so kill only fires after iOS
+    // has accepted the open request — avoids the race condition.
+    [app openURL:url options:@{} completionHandler:^(BOOL s1) {
+        [app openURL:url options:@{} completionHandler:^(BOOL s2) {
 #if defined(__arm64__)
-        __asm__ __volatile__(
-            "mov x0, #31\n"
-            "mov x16, #26\n"
-            "svc #0x80\n"
-        );
+            __asm__ __volatile__(
+                "mov x0, #31\n"
+                "mov x16, #26\n"
+                "svc #0x80\n"
+            );
 #endif
-        raise(SIGKILL);
-    });
+            raise(SIGKILL);
+        }];
+    }];
 }
 
-// ─── Floating overlay view ────────────────────────────────────
+// ─── Floating overlay view ─────────────────────────────────────
 @interface LCExitButtonView : UIView
 + (void)installInWindow:(UIWindow *)window;
 @end
@@ -61,13 +53,10 @@ static void lceb_relaunchLC(void) {
 + (void)installInWindow:(UIWindow *)window {
     if (!window || !g_lcDefaults) return;
 
-    // Read prefs from the REAL LC UserDefaults (g_lcDefaults),
-    // not from standardUserDefaults which is redirected to the guest container.
     id stored = [g_lcDefaults objectForKey:@"LCShowExitButton"];
     BOOL showButton = stored ? [g_lcDefaults boolForKey:@"LCShowExitButton"] : YES;
     if (!showButton) return;
 
-    // Remove any existing instance
     for (UIView *sub in [window.subviews copy]) {
         if ([sub isKindOfClass:[LCExitButtonView class]]) {
             [sub removeFromSuperview];
@@ -95,8 +84,7 @@ static void lceb_relaunchLC(void) {
     v.layer.zPosition        = 9999.0f;
 
     UIButton *btn = [UIButton buttonWithType:UIButtonTypeCustom];
-    btn.frame     = CGRectMake(0, 0, size, size);
-
+    btn.frame = CGRectMake(0, 0, size, size);
     if (@available(iOS 13.0, *)) {
         UIImageSymbolConfiguration *cfg = [UIImageSymbolConfiguration
             configurationWithPointSize:26 weight:UIImageSymbolWeightSemibold];
@@ -108,7 +96,6 @@ static void lceb_relaunchLC(void) {
         [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
         btn.titleLabel.font = [UIFont boldSystemFontOfSize:20];
     }
-
     btn.layer.shadowColor   = [UIColor blackColor].CGColor;
     btn.layer.shadowOffset  = CGSizeMake(0, 2);
     btn.layer.shadowRadius  = 4.0f;
@@ -138,7 +125,6 @@ static void lceb_relaunchLC(void) {
         handler:^(UIAlertAction *_) {
             lceb_relaunchLC();
         }]];
-
     [alert addAction:[UIAlertAction
         actionWithTitle:@"Cancel"
         style:UIAlertActionStyleCancel
@@ -154,7 +140,7 @@ static void lceb_relaunchLC(void) {
 
 @end
 
-// ─── UIWindow hooks ───────────────────────────────────────────
+// ─── UIWindow hooks ────────────────────────────────────────────
 static IMP orig_makeKeyAndVisible;
 static void hook_makeKeyAndVisible(UIWindow *self, SEL _cmd) {
     ((void (*)(id, SEL))orig_makeKeyAndVisible)(self, _cmd);
@@ -176,17 +162,17 @@ static void hook_layoutSubviews(UIWindow *self, SEL _cmd) {
     }
 }
 
-// ─── Entry point ──────────────────────────────────────────────
-// Called from LCBootstrap BEFORE overwriteMainCFBundle() and
-// BEFORE NUDGuestHooksInit() so that both globals are still valid.
+// ─── Entry point ───────────────────────────────────────────────
+// IMPORTANT: call this BEFORE NUDGuestHooksInit() in LCBootstrap.m
+// so that lcUserDefaults still points to the real LC defaults.
 void LCExitButtonGuestHooksInit(BOOL isLiveProcess) {
     if (isLiveProcess) return;
 
-    // Capture LC's scheme and defaults NOW — before the guest bundle/defaults swap
+    // Capture before NUDGuestHooksInit redirects standardUserDefaults
+    // and before overwriteMainCFBundle changes NSBundle.mainBundle.
     g_lcScheme   = [lcAppUrlScheme copy];
     g_lcDefaults = lcUserDefaults;
 
-    // Check the real LC prefs before deciding whether to install hooks
     id stored = [g_lcDefaults objectForKey:@"LCShowExitButton"];
     BOOL showButton = stored ? [g_lcDefaults boolForKey:@"LCShowExitButton"] : YES;
     if (!showButton) return;
