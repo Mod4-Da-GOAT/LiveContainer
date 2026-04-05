@@ -157,7 +157,6 @@ struct MultitaskAppWindow: View {
             } message: {
                 Text("lc.appList.exitAppConfirmMessage".loc)
             }
-            .navigationBarHidden(true)
             .onReceive(pub) { out in
                 if let scene1 = sceneDelegate.window?.windowScene, let scene2 = out.object as? UIWindowScene, scene1 == scene2 {
                     show = false
