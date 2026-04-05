@@ -3,7 +3,7 @@
 //  LiveContainer
 //
 //  Injects a floating exit button on top of the running guest app (normal mode only).
-//  Pass isLiveProcess=YES to skip — multitask is handled by MultitaskAppWindow.swift.
+//  Pass isLiveProcess=YES to skip; multitask is handled by MultitaskAppWindow.swift.
 //
 
 #import <UIKit/UIKit.h>
@@ -11,36 +11,39 @@
 #import <signal.h>
 #import "../LCSharedUtils.h"
 
-// ─────────────────────────────────────────────────────────────
-// Relaunch LC without going through canOpenURL (which always
-// returns NO from inside the guest because livecontainer:// is
-// not in the guest app's LSApplicationQueriesSchemes).
-// This mirrors what LCSharedUtils.launchToGuestApp does internally.
-// ─────────────────────────────────────────────────────────────
-static void lceb_relaunchLC(void) {
-    // Get the LC URL scheme from CFBundleURLTypes — always valid because
-    // this process IS LC (the guest runs inside LC's process in normal mode).
-    NSArray *urlTypes = [NSBundle mainBundle].infoDictionary[@"CFBundleURLTypes"];
-    NSString *scheme  = [urlTypes firstObject][@"CFBundleURLSchemes"][0] ?: @"livecontainer";
-    NSString *urlStr  = [NSString stringWithFormat:@"%@://livecontainer-relaunch", scheme];
-    NSURL    *url     = [NSURL URLWithString:urlStr];
+// ─── Externs from LCBootstrap.m ──────────────────────────────
+// These are captured at LCExitButtonGuestHooksInit() time, BEFORE
+// overwriteMainCFBundle() changes NSBundle.mainBundle to the guest app
+// and BEFORE NUDGuestHooksInit() redirects standardUserDefaults.
+extern NSString       *lcAppUrlScheme;
+extern NSUserDefaults *lcUserDefaults;
 
+// Saved at init time so they remain valid after the bundle/defaults swap.
+static NSString       *g_lcScheme     = nil;
+static NSUserDefaults *g_lcDefaults   = nil;
+
+// ─── Relaunch LC ─────────────────────────────────────────────
+// Opens the LC URL scheme directly (bypassing canOpenURL which always
+// returns NO from inside the guest because livecontainer:// is not in
+// the guest app's LSApplicationQueriesSchemes) then kills this process.
+// iOS processes the queued open request and launches a fresh LC instance.
+static void lceb_relaunchLC(void) {
+    NSString *scheme = g_lcScheme ?: @"livecontainer";
+    NSURL    *url    = [NSURL URLWithString:
+                        [NSString stringWithFormat:@"%@://livecontainer-relaunch", scheme]];
     UIApplication *app = [NSClassFromString(@"UIApplication") sharedApplication];
 
-    // Open twice (same as launchToGuestApp with tries=2) so the request is
-    // queued by iOS even if the first delivery races with our SIGKILL.
-    for (int i = 0; i < 2; i++) {
-        [app openURL:url options:@{} completionHandler:nil];
-    }
+    // Two opens, same as launchToGuestApp(tries=2)
+    [app openURL:url options:@{} completionHandler:nil];
+    [app openURL:url options:@{} completionHandler:nil];
 
-    // Give iOS a moment to queue the URL open, then terminate via SIGKILL.
-    // iOS will process the pending open-URL request and launch a fresh LC.
+    // Short delay so iOS can queue the request, then kill this process
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
 #if defined(__arm64__)
         __asm__ __volatile__(
-            "mov x0, #31\n"   // PT_DENY_ATTACH (matches LCSharedUtils exactly)
-            "mov x16, #26\n"  // SYS_ptrace
+            "mov x0, #31\n"
+            "mov x16, #26\n"
             "svc #0x80\n"
         );
 #endif
@@ -48,10 +51,7 @@ static void lceb_relaunchLC(void) {
     });
 }
 
-// ─────────────────────────────────────────────────────────────
-// Floating container — passes all touches through to the app
-// except those that land on the exit button itself.
-// ─────────────────────────────────────────────────────────────
+// ─── Floating overlay view ────────────────────────────────────
 @interface LCExitButtonView : UIView
 + (void)installInWindow:(UIWindow *)window;
 @end
@@ -59,11 +59,12 @@ static void lceb_relaunchLC(void) {
 @implementation LCExitButtonView
 
 + (void)installInWindow:(UIWindow *)window {
-    if (!window) return;
+    if (!window || !g_lcDefaults) return;
 
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    id stored = [defaults objectForKey:@"LCShowExitButton"];
-    BOOL showButton = stored ? [defaults boolForKey:@"LCShowExitButton"] : YES;
+    // Read prefs from the REAL LC UserDefaults (g_lcDefaults),
+    // not from standardUserDefaults which is redirected to the guest container.
+    id stored = [g_lcDefaults objectForKey:@"LCShowExitButton"];
+    BOOL showButton = stored ? [g_lcDefaults boolForKey:@"LCShowExitButton"] : YES;
     if (!showButton) return;
 
     // Remove any existing instance
@@ -82,7 +83,7 @@ static void lceb_relaunchLC(void) {
         return;
     }
 
-    BOOL onRight    = [defaults boolForKey:@"LCExitButtonPosition"];
+    BOOL onRight    = [g_lcDefaults boolForKey:@"LCExitButtonPosition"];
     CGFloat size    = 44.0f;
     CGFloat safeTop = window.safeAreaInsets.top > 0 ? window.safeAreaInsets.top : 44.0f;
     CGFloat x       = onRight ? (winW - size - 12.0f) : 12.0f;
@@ -146,7 +147,6 @@ static void lceb_relaunchLC(void) {
     [rootVC presentViewController:alert animated:YES completion:nil];
 }
 
-// Transparent container: only the button subview is hittable, not the container itself
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
     UIView *hit = [super hitTest:point withEvent:event];
     return (hit == self) ? nil : hit;
@@ -154,9 +154,7 @@ static void lceb_relaunchLC(void) {
 
 @end
 
-// ─────────────────────────────────────────────────────────────
-// UIWindow hooks
-// ─────────────────────────────────────────────────────────────
+// ─── UIWindow hooks ───────────────────────────────────────────
 static IMP orig_makeKeyAndVisible;
 static void hook_makeKeyAndVisible(UIWindow *self, SEL _cmd) {
     ((void (*)(id, SEL))orig_makeKeyAndVisible)(self, _cmd);
@@ -166,12 +164,10 @@ static void hook_makeKeyAndVisible(UIWindow *self, SEL _cmd) {
     });
 }
 
-// Hook layoutSubviews: fires after bounds are final, so right-side x is always correct
 static IMP orig_layoutSubviews;
 static void hook_layoutSubviews(UIWindow *self, SEL _cmd) {
     ((void (*)(id, SEL))orig_layoutSubviews)(self, _cmd);
     if (!self.isKeyWindow) return;
-    // Only re-position if a button already exists (don't install on every layout pass)
     for (UIView *sub in self.subviews) {
         if ([sub isKindOfClass:[LCExitButtonView class]]) {
             [LCExitButtonView installInWindow:self];
@@ -180,12 +176,19 @@ static void hook_layoutSubviews(UIWindow *self, SEL _cmd) {
     }
 }
 
+// ─── Entry point ──────────────────────────────────────────────
+// Called from LCBootstrap BEFORE overwriteMainCFBundle() and
+// BEFORE NUDGuestHooksInit() so that both globals are still valid.
 void LCExitButtonGuestHooksInit(BOOL isLiveProcess) {
     if (isLiveProcess) return;
 
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    id stored = [defaults objectForKey:@"LCShowExitButton"];
-    BOOL showButton = stored ? [defaults boolForKey:@"LCShowExitButton"] : YES;
+    // Capture LC's scheme and defaults NOW — before the guest bundle/defaults swap
+    g_lcScheme   = [lcAppUrlScheme copy];
+    g_lcDefaults = lcUserDefaults;
+
+    // Check the real LC prefs before deciding whether to install hooks
+    id stored = [g_lcDefaults objectForKey:@"LCShowExitButton"];
+    BOOL showButton = stored ? [g_lcDefaults boolForKey:@"LCShowExitButton"] : YES;
     if (!showButton) return;
 
     Class cls = [UIWindow class];
