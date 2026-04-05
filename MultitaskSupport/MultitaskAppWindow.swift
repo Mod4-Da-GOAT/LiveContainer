@@ -131,10 +131,8 @@ struct MultitaskAppWindow: View {
                 .background(.black)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .ignoresSafeArea(.all)
-            .navigationBarHidden(true)
+            .ignoresSafeArea(.all, edges: .all)
             .overlay(alignment: exitButtonOnRight ? .topTrailing : .topLeading) {
-                // Exit button — uses overlay so it never affects the underlying layout
                 if showExitButton {
                     Button {
                         Task { await confirmExit() }
@@ -159,7 +157,7 @@ struct MultitaskAppWindow: View {
             } message: {
                 Text("lc.appList.exitAppConfirmMessage".loc)
             }
-            .navigationTitle(Text("\(appInfo.displayName) - \(String(pid))"))
+            .navigationBarHidden(true)
             .onReceive(pub) { out in
                 if let scene1 = sceneDelegate.window?.windowScene, let scene2 = out.object as? UIWindowScene, scene1 == scene2 {
                     show = false
