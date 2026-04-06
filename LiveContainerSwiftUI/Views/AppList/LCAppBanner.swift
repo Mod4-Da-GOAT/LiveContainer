@@ -34,6 +34,7 @@ struct LCAppBanner : View {
     
     @State private var errorShow = false
     @State private var errorInfo = ""
+    let updateAction: (() -> Void)?
     
     @AppStorage("dynamicColors", store: LCUtils.appGroupUserDefault) var dynamicColors = true
     @AppStorage("darkModeIcon", store: LCUtils.appGroupUserDefault) var darkModeIcon = false
@@ -44,11 +45,12 @@ struct LCAppBanner : View {
     @Environment(\.colorScheme) var colorScheme
     @EnvironmentObject private var sharedModel : SharedModel
     
-    init(appModel: LCAppModel, delegate: LCAppBannerDelegate, appDataFolders: Binding<[String]>, tweakFolders: Binding<[String]>) {
+    init(appModel: LCAppModel, delegate: LCAppBannerDelegate, appDataFolders: Binding<[String]>, tweakFolders: Binding<[String]>, updateAction: (() -> Void)? = nil) {
         _appInfo = State(initialValue: appModel.appInfo)
         _appDataFolders = appDataFolders
         _tweakFolders = tweakFolders
         self.delegate = delegate
+        self.updateAction = updateAction
         
         _model = ObservedObject(wrappedValue: appModel)
         _mainColor = State(initialValue: Color.clear)
@@ -166,60 +168,132 @@ struct LCAppBanner : View {
             }
             .allowsHitTesting(false)
             Spacer()
-            Button {
-                if #available(iOS 16.0, *), launchInMultitaskMode {
-                     if let currentDataFolder = model.uiSelectedContainer?.folderName,
-                        MultitaskManager.isUsing(container: currentDataFolder) {
-                         var found = false
-                         if #available(iOS 16.1, *) {
-                             found = MultitaskWindowManager.openExistingAppWindow(dataUUID: currentDataFolder)
-                         }
-                         if !found {
-                             found = MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: currentDataFolder)
-                         }
-                         if found {
-                             return
-                         }
-                     }
-                     
-                    Task{ await runApp(multitask: true) }
-                } else {
-                    Task{ await runApp(multitask: false) }
-                }
-            } label: {
-                if !model.isSigningInProgress {
-                    Text("lc.appBanner.run".loc).bold().foregroundColor(.white)
-                        .lineLimit(1)
-                        .frame(height:32)
-                        .minimumScaleFactor(0.1)
-                } else {
-                    ProgressView().progressViewStyle(.circular)
-                }
+            if let updateAction {
+                HStack(spacing: 0) {
+                    Button {
+                        updateAction()
+                    } label: {
+                        Text("Update").bold().foregroundColor(.white)
+                            .lineLimit(1)
+                            .padding(.horizontal, 12)
+                            .frame(height: 32)
+                            .minimumScaleFactor(0.1)
+                    }
+                    .buttonStyle(.plain)
 
+                    Divider()
+                        .frame(width: 1, height: 24)
+                        .background(Color.white.opacity(0.6))
+                        .padding(.vertical, 4)
+
+                    Button {
+                        if #available(iOS 16.0, *), launchInMultitaskMode {
+                             if let currentDataFolder = model.uiSelectedContainer?.folderName,
+                                MultitaskManager.isUsing(container: currentDataFolder) {
+                                 var found = false
+                                 if #available(iOS 16.1, *) {
+                                     found = MultitaskWindowManager.openExistingAppWindow(dataUUID: currentDataFolder)
+                                 }
+                                 if !found {
+                                     found = MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: currentDataFolder)
+                                 }
+                                 if found {
+                                     return
+                                 }
+                             }
+
+                            Task{ await runApp(multitask: true) }
+                        } else {
+                            Task{ await runApp(multitask: false) }
+                        }
+                    } label: {
+                        if !model.isSigningInProgress {
+                            Text("lc.appBanner.run".loc).bold().foregroundColor(.white)
+                                .lineLimit(1)
+                                .padding(.horizontal, 12)
+                                .frame(height: 32)
+                                .minimumScaleFactor(0.1)
+                        } else {
+                            ProgressView().progressViewStyle(.circular)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 4)
+                .padding(.vertical, 4)
+                .frame(height: 32)
+                .background(GeometryReader { g in
+                    if !model.isSigningInProgress {
+                        Capsule().fill(dynamicColors ? mainColor : Color("FontColor"))
+                    } else {
+                        let w = g.size.width
+                        let h = g.size.height
+                        Capsule()
+                            .fill(dynamicColors ? mainColor : Color("FontColor")).opacity(0.2)
+                        Circle()
+                            .fill(dynamicColors ? mainColor : Color("FontColor"))
+                            .frame(width: w * 2, height: w * 2)
+                            .offset(x: (model.signProgress - 2) * w, y: h/2-w)
+                    }
+                })
+                .clipShape(Capsule())
+                .contentShape(Capsule())
+                .disabled(model.isAppRunning)
+            } else {
+                Button {
+                    if #available(iOS 16.0, *), launchInMultitaskMode {
+                         if let currentDataFolder = model.uiSelectedContainer?.folderName,
+                            MultitaskManager.isUsing(container: currentDataFolder) {
+                             var found = false
+                             if #available(iOS 16.1, *) {
+                                 found = MultitaskWindowManager.openExistingAppWindow(dataUUID: currentDataFolder)
+                             }
+                             if !found {
+                                 found = MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: currentDataFolder)
+                             }
+                             if found {
+                                 return
+                             }
+                         }
+
+                        Task{ await runApp(multitask: true) }
+                    } else {
+                        Task{ await runApp(multitask: false) }
+                    }
+                } label: {
+                    if !model.isSigningInProgress {
+                        Text("lc.appBanner.run".loc).bold().foregroundColor(.white)
+                            .lineLimit(1)
+                            .frame(height:32)
+                            .minimumScaleFactor(0.1)
+                    } else {
+                        ProgressView().progressViewStyle(.circular)
+                    }
+                }
+                .buttonStyle(BasicButtonStyle())
+                .padding()
+                .frame(idealWidth: 70)
+                .frame(height: 32)
+                .fixedSize()
+                .background(GeometryReader { g in
+                    if !model.isSigningInProgress {
+                        Capsule().fill(dynamicColors ? mainColor : Color("FontColor"))
+                    } else {
+                        let w = g.size.width
+                        let h = g.size.height
+                        Capsule()
+                            .fill(dynamicColors ? mainColor : Color("FontColor")).opacity(0.2)
+                        Circle()
+                            .fill(dynamicColors ? mainColor : Color("FontColor"))
+                            .frame(width: w * 2, height: w * 2)
+                            .offset(x: (model.signProgress - 2) * w, y: h/2-w)
+                    }
+                })
+                .clipShape(Capsule())
+                .contentShape(Capsule())
+                .disabled(model.isAppRunning)
             }
-            .buttonStyle(BasicButtonStyle())
-            .padding()
-            .frame(idealWidth: 70)
-            .frame(height: 32)
-            .fixedSize()
-            .background(GeometryReader { g in
-                if !model.isSigningInProgress {
-                    Capsule().fill(dynamicColors ? mainColor : Color("FontColor"))
-                } else {
-                    let w = g.size.width
-                    let h = g.size.height
-                    Capsule()
-                        .fill(dynamicColors ? mainColor : Color("FontColor")).opacity(0.2)
-                    Circle()
-                        .fill(dynamicColors ? mainColor : Color("FontColor"))
-                        .frame(width: w * 2, height: w * 2)
-                        .offset(x: (model.signProgress - 2) * w, y: h/2-w)
-                }
 
-            })
-            .clipShape(Capsule())
-            .contentShape(Capsule())
-            .disabled(model.isAppRunning)
         }
         .padding()
         .frame(height: 88)
