@@ -96,7 +96,6 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
     @State private var isViewAppeared = false
     
     @ObservedObject var searchContext = SearchContext()
-    @StateObject private var altStoreSourcesViewModel = AltStoreSourcesViewModel()
 
     
     // Used to force NavigationView redraw on pop and prevent toolbar animation glitch
@@ -190,20 +189,9 @@ func setMode(_ mode: AppLaunchMode) {
         }
     }
 
-    private var altStoreSourceAppsByBundleId: [String: AltStoreSourceApp] {
-        var map: [String: AltStoreSourceApp] = [:]
-        for item in altStoreSourcesViewModel.sources {
-            guard let source = item.source else { continue }
-            for sourceApp in source.apps {
-                map[sourceApp.bundleIdentifier] = sourceApp
-            }
-        }
-        return map
-    }
-
     /// Compares two semantic version strings (e.g. "1.2.3").
     /// Returns true if `sourceVersion` is newer than `installedVersion`.
-    private func isSourceVersionNewer(_ sourceVersion: String, than installedVersion: String) -> Bool {
+    static func isSourceVersionNewer(_ sourceVersion: String, than installedVersion: String) -> Bool {
         let sourceComponents = sourceVersion.split(separator: ".").compactMap { Int($0) }
         let installedComponents = installedVersion.split(separator: ".").compactMap { Int($0) }
         let maxLength = max(sourceComponents.count, installedComponents.count)
@@ -215,28 +203,46 @@ func setMode(_ mode: AppLaunchMode) {
         return false
     }
 
+    /// Searches all loaded sources and returns the newest available version
+    /// for the given bundle ID that is newer than `installedVersion`.
+    /// When the same app appears in multiple sources, the overall newest wins.
+    static func bestUpdateVersion(
+        for bundleId: String,
+        installedVersion: String,
+        sources: [AltStoreSourcesViewModel.SourceItem]
+    ) -> AltStoreSourceAppVersion? {
+        var best: AltStoreSourceAppVersion? = nil
+        for item in sources {
+            guard let source = item.source else { continue }
+            guard let sourceApp = source.apps.first(where: { $0.bundleIdentifier == bundleId }) else { continue }
+            // Prefer the versions array (sorted newest-first); fall back to latestVersion for legacy sources
+            let candidates = sourceApp.versions.isEmpty
+                ? [sourceApp.latestVersion].compactMap { $0 }
+                : sourceApp.versions
+            for candidate in candidates {
+                guard isSourceVersionNewer(candidate.version, than: installedVersion) else { continue }
+                if let current = best {
+                    if isSourceVersionNewer(candidate.version, than: current.version) {
+                        best = candidate
+                    }
+                } else {
+                    best = candidate
+                }
+                break // versions are sorted newest-first; first valid one is the best from this source
+            }
+        }
+        return best
+    }
+
     private func updateAction(for app: LCAppModel) -> (() -> Void)? {
         guard let bundleId = app.appInfo.bundleIdentifier(),
-              let sourceApp = altStoreSourceAppsByBundleId[bundleId],
-              let installedVersion = app.appInfo.version() else {
-            return nil
-        }
-
-        // Find the newest version from the source that is actually newer than what's installed.
-        // `versions` is sorted newest-first per the AltStore source spec.
-        let candidateVersion: AltStoreSourceAppVersion?
-        if !sourceApp.versions.isEmpty {
-            candidateVersion = sourceApp.versions.first { isSourceVersionNewer($0.version, than: installedVersion) }
-        } else if let latest = sourceApp.latestVersion,
-                  isSourceVersionNewer(latest.version, than: installedVersion) {
-            candidateVersion = latest
-        } else {
-            candidateVersion = nil
-        }
-
-        guard let updateVersion = candidateVersion else { return nil }
+              let installedVersion = app.appInfo.version() else { return nil }
+        guard let updateVersion = Self.bestUpdateVersion(
+            for: bundleId,
+            installedVersion: installedVersion,
+            sources: sharedModel.sourcesViewModel.sources
+        ) else { return nil }
         let downloadURL = updateVersion.downloadURL
-
         return {
             withAnimation {
                 DataManager.shared.model.selectedTab = .apps
@@ -1507,13 +1513,38 @@ func setMode(_ mode: AppLaunchMode) {
                 try fm.removeItem(atPath: bundlePath)
                 removeApp(app: app)
                 if removeData {
+                    // Remove all named containers
                     for container in app.appInfo.containers {
-                        if fm.fileExists(atPath: container.containerURL.path) {
-                            try? fm.removeItem(at: container.containerURL)
+                        let containerURL = container.containerURL
+                        if fm.fileExists(atPath: containerURL.path) {
+                            try? fm.removeItem(at: containerURL)
+                        }
+                        // Also remove app group isolation folder if it exists
+                        let appGroupURL = LCPath.appGroupPath.appendingPathComponent(container.folderName)
+                        if fm.fileExists(atPath: appGroupURL.path) {
+                            try? fm.removeItem(at: appGroupURL)
+                        }
+                        let lcGroupAppGroupURL = LCPath.lcGroupAppGroupPath.appendingPathComponent(container.folderName)
+                        if fm.fileExists(atPath: lcGroupAppGroupURL.path) {
+                            try? fm.removeItem(at: lcGroupAppGroupURL)
                         }
                         LCUtils.removeAppKeychain(dataUUID: container.folderName)
                         DispatchQueue.main.async {
                             self.appDataFolderNames.removeAll { $0 == container.folderName }
+                        }
+                    }
+                    // Legacy: also try the raw dataUUID folder in case containerInfo was nil
+                    if let legacyUUID = app.appInfo.dataUUID {
+                        let legacyURL = LCPath.dataPath.appendingPathComponent(legacyUUID)
+                        if fm.fileExists(atPath: legacyURL.path) {
+                            try? fm.removeItem(at: legacyURL)
+                        }
+                        let legacyGroupURL = LCPath.lcGroupDataPath.appendingPathComponent(legacyUUID)
+                        if fm.fileExists(atPath: legacyGroupURL.path) {
+                            try? fm.removeItem(at: legacyGroupURL)
+                        }
+                        DispatchQueue.main.async {
+                            self.appDataFolderNames.removeAll { $0 == legacyUUID }
                         }
                     }
                 }
