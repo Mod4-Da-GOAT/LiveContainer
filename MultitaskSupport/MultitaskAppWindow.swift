@@ -147,16 +147,22 @@ struct MultitaskAppWindow: View {
                     .padding(exitButtonOnRight ? .trailing : .leading, 16)
                 }
             }
-            .alert("lc.appList.exitAppConfirmTitle".loc, isPresented: $exitConfirmAlert.show) {
-                Button(role: .destructive) {
-                    exitConfirmAlert.close(result: true)
-                } label: { Text("lc.appList.exitAppConfirmLeave".loc) }
-                Button("lc.common.cancel".loc, role: .cancel) {
-                    exitConfirmAlert.close(result: false)
-                }
-            } message: {
-                Text("lc.appList.exitAppConfirmMessage".loc)
-            }
+            .navigationTitle(Text("\(appInfo.displayName) - \(String(pid))"))
+            .background(
+                // Alert is attached to an EmptyView in the background so it
+                // cannot affect the proposed size of the GeometryReader above.
+                EmptyView()
+                    .alert("lc.appList.exitAppConfirmTitle".loc, isPresented: $exitConfirmAlert.show) {
+                        Button(role: .destructive) {
+                            exitConfirmAlert.close(result: true)
+                        } label: { Text("lc.appList.exitAppConfirmLeave".loc) }
+                        Button("lc.common.cancel".loc, role: .cancel) {
+                            exitConfirmAlert.close(result: false)
+                        }
+                    } message: {
+                        Text("lc.appList.exitAppConfirmMessage".loc)
+                    }
+            )
             .onReceive(pub) { out in
                 if let scene1 = sceneDelegate.window?.windowScene, let scene2 = out.object as? UIWindowScene, scene1 == scene2 {
                     show = false
