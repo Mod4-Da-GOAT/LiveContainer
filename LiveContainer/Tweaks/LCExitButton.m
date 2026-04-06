@@ -3,7 +3,7 @@
 //  LiveContainer
 //
 //  Injects a floating exit button on top of the running guest app (normal mode only).
-//  Pass isLiveProcess=YES to skip; multitask is handled by MultitaskAppWindow.swift.
+//  Pass isLiveProcess=YES to skip — multitask is handled by MultitaskAppWindow.swift.
 //
 
 #import <UIKit/UIKit.h>
@@ -11,39 +11,48 @@
 #import <signal.h>
 #import "../LCSharedUtils.h"
 
-// ─── Externs captured at init time (before bundle/defaults swap) ───
+// Captured at init time, before bundle/defaults swap
 extern NSString       *lcAppUrlScheme;
 extern NSUserDefaults *lcUserDefaults;
-
 static NSString       *g_lcScheme   = nil;
 static NSUserDefaults *g_lcDefaults = nil;
 
+// ─── Kill this process so iOS relaunches LC ────────────────────
+static void lceb_kill(void) {
+#if defined(__arm64__)
+    __asm__ __volatile__(
+        "mov x0, #31\n"
+        "mov x16, #26\n"
+        "svc #0x80\n"
+    );
+#endif
+    raise(SIGKILL);
+}
+
 // ─── Relaunch LC ──────────────────────────────────────────────
-// Bypasses canOpenURL (always NO from inside guest) and kills
-// the process after iOS has queued the LC relaunch request.
+// Opens the LC URL scheme (bypassing canOpenURL, which always returns NO
+// from inside the guest because livecontainer:// is not in the guest plist's
+// LSApplicationQueriesSchemes). Then kills the process so iOS processes the
+// pending open request and launches a fresh LC.
 static void lceb_relaunchLC(void) {
     NSString *scheme = g_lcScheme ?: @"livecontainer";
     NSURL *url = [NSURL URLWithString:
         [NSString stringWithFormat:@"%@://livecontainer-relaunch", scheme]];
     UIApplication *app = [NSClassFromString(@"UIApplication") sharedApplication];
 
-    // Open inside completionHandler chain so kill only fires after iOS
-    // has accepted the open request — avoids the race condition.
+    // Open the URL twice (same as launchToGuestApp with tries=2), each in a nested
+    // completionHandler so the kill fires only after both opens have been dispatched.
     [app openURL:url options:@{} completionHandler:^(BOOL s1) {
         [app openURL:url options:@{} completionHandler:^(BOOL s2) {
-#if defined(__arm64__)
-            __asm__ __volatile__(
-                "mov x0, #31\n"
-                "mov x16, #26\n"
-                "svc #0x80\n"
-            );
-#endif
-            raise(SIGKILL);
+            // Dispatch to main queue to ensure we're not inside any UIKit callback stack
+            dispatch_async(dispatch_get_main_queue(), ^{
+                lceb_kill();
+            });
         }];
     }];
 }
 
-// ─── Floating overlay view ─────────────────────────────────────
+// ─── Floating container view ───────────────────────────────────
 @interface LCExitButtonView : UIView
 + (void)installInWindow:(UIWindow *)window;
 @end
@@ -57,6 +66,7 @@ static void lceb_relaunchLC(void) {
     BOOL showButton = stored ? [g_lcDefaults boolForKey:@"LCShowExitButton"] : YES;
     if (!showButton) return;
 
+    // Remove existing
     for (UIView *sub in [window.subviews copy]) {
         if ([sub isKindOfClass:[LCExitButtonView class]]) {
             [sub removeFromSuperview];
@@ -163,13 +173,11 @@ static void hook_layoutSubviews(UIWindow *self, SEL _cmd) {
 }
 
 // ─── Entry point ───────────────────────────────────────────────
-// IMPORTANT: call this BEFORE NUDGuestHooksInit() in LCBootstrap.m
-// so that lcUserDefaults still points to the real LC defaults.
+// MUST be called before NUDGuestHooksInit() so lcUserDefaults is
+// still the real LC defaults (not yet redirected to guest container).
 void LCExitButtonGuestHooksInit(BOOL isLiveProcess) {
     if (isLiveProcess) return;
 
-    // Capture before NUDGuestHooksInit redirects standardUserDefaults
-    // and before overwriteMainCFBundle changes NSBundle.mainBundle.
     g_lcScheme   = [lcAppUrlScheme copy];
     g_lcDefaults = lcUserDefaults;
 
