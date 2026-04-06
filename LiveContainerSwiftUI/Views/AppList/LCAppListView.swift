@@ -1438,7 +1438,7 @@ func setMode(_ mode: AppLaunchMode) {
     @ViewBuilder
     func appRow(app: LCAppModel, isHidden: Bool) -> some View {
         ZStack(alignment: .leading) {
-            LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames, updateAction: updateAction(for: app))
+            LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames, updateAction: isHidden ? nil : updateAction(for: app))
                 .padding(.leading, isMultiSelectMode ? 36 : 0)
                 .animation(.easeInOut(duration: 0.2), value: isMultiSelectMode)
                 .allowsHitTesting(!isMultiSelectMode && !isDeleting)
