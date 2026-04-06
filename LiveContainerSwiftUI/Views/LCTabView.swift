@@ -93,6 +93,9 @@ struct LCTabView: View {
                             LCTweaksView(tweakFolders: $tweakFolderNames)
                         }
                     }
+                    Tab("Updates", systemImage: "arrow.down.circle", value: LCTabIdentifier.updates) {
+                        LCUpdatesView()
+                    }
                     Tab("lc.tabView.settings".loc, systemImage: "gearshape.fill", value: LCTabIdentifier.settings) {
                         LCSettingsView(appDataFolderNames: $appDataFolderNames)
                     }
@@ -131,6 +134,11 @@ struct LCTabView: View {
                             }
                             .tag(LCTabIdentifier.tweaks)
                     }
+                    LCUpdatesView()
+                        .tabItem {
+                            Label("Updates", systemImage: "arrow.down.circle")
+                        }
+                        .tag(LCTabIdentifier.updates)
                     
                     LCSettingsView(appDataFolderNames: $appDataFolderNames)
                         .tabItem {
@@ -191,7 +199,7 @@ struct LCTabView: View {
             }
         }
         .onChange(of: sharedModel.selectedTab) { newValue in
-            if newValue != LCTabIdentifier.search {
+            if newValue != LCTabIdentifier.search && newValue != LCTabIdentifier.updates {
                 previousSelectedTab = newValue
             }
         }
@@ -203,6 +211,19 @@ struct LCTabView: View {
                 $0.toolbar(sharedModel.isMultiSelectMode ? .hidden : .visible, for: .tabBar)
             } else {
                 $0
+            }
+        }
+        .onChange(of: sharedModel.isMultiSelectMode) { hiding in
+            // Fallback for iOS < 16 and for any tab bar variant not caught by the toolbar modifier
+            if let tabBar = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene })
+                .flatMap({ $0.windows })
+                .compactMap({ $0.rootViewController })
+                .flatMap({ Self.allTabBars(in: $0) })
+                .first {
+                UIView.animate(withDuration: 0.25) {
+                    tabBar.alpha = hiding ? 0 : 1
+                }
             }
         }
 
@@ -289,6 +310,16 @@ struct LCTabView: View {
     
     func copyError() {
         UIPasteboard.general.string = errorInfo
+    }
+    
+    private static func allTabBars(in vc: UIViewController) -> [UIView] {
+        var result: [UIView] = []
+        if let tbc = vc as? UITabBarController {
+            result.append(tbc.tabBar)
+        }
+        for child in vc.children { result += allTabBars(in: child) }
+        if let pvc = vc.presentedViewController { result += allTabBars(in: pvc) }
+        return result
     }
     
     func checkTeamId() {
