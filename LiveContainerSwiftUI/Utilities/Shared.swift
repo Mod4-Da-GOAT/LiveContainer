@@ -72,6 +72,9 @@ class SharedModel: ObservableObject {
     @Published var isMultiSelectMode = false
     @Published var isInAppSettings = false
 
+    /// Shared across all views — loads once, refreshes on demand.
+    let sourcesViewModel = AltStoreSourcesViewModel()
+
     
     static let isPhone: Bool = {
         UIDevice.current.userInterfaceIdiom == .phone
@@ -318,4 +321,5 @@ public enum LCTabIdentifier: Hashable {
     case tweaks
     case settings
     case search
+    case updates
 }
