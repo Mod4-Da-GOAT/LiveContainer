@@ -103,6 +103,9 @@ struct MultitaskAppWindow: View {
     @AppStorage("LCSkipTerminatedScreen", store: LCUtils.appGroupUserDefault) var skipTerminatedScreen = false
     @AppStorage("LCShowExitButton") var showExitButton = true
     @AppStorage("LCExitButtonPosition") var exitButtonOnRight = false  // false = left, true = right
+    @AppStorage("LCRealiPhoneMode") var isiPhoneMode = false
+    // Standard iPhone 14/15 logical width in portrait
+    private let iPhoneWidth: CGFloat = 390
     @StateObject private var exitConfirmAlert = YesNoHelper()
     let pub = NotificationCenter.default.publisher(for: UIScene.didDisconnectNotification)
     init(id: String) {
@@ -116,20 +119,28 @@ struct MultitaskAppWindow: View {
         let isVirtualWindowMode = multitaskMode == .virtualWindow
         if show, let appInfo {
             GeometryReader { geometry in
-                AppSceneViewSwiftUI(show: $show, bundleId: appInfo.bundleId, dataUUID: appInfo.dataUUID, initSize: geometry.size,
-                                    onAppInitialize: { pid, error in
-                    DispatchQueue.main.async {
-                        if error == nil {
-                            self.pid = Int(pid)
-                        } else {
-                            self.errorMessage = error?.localizedDescription
+                let effectiveWidth = isiPhoneMode ? min(iPhoneWidth, geometry.size.width) : geometry.size.width
+                let initSize = isiPhoneMode ? CGSize(width: effectiveWidth, height: geometry.size.height) : geometry.size
+                HStack(spacing: 0) {
+                    if isiPhoneMode { Spacer(minLength: 0) }
+                    AppSceneViewSwiftUI(show: $show, bundleId: appInfo.bundleId, dataUUID: appInfo.dataUUID, initSize: initSize,
+                                        onAppInitialize: { pid, error in
+                        DispatchQueue.main.async {
+                            if error == nil {
+                                self.pid = Int(pid)
+                            } else {
+                                self.errorMessage = error?.localizedDescription
+                            }
+                            DataManager.shared.model.pidCallback?(NSNumber(value: pid), error)
+                            DataManager.shared.model.pidCallback = nil
                         }
-                        DataManager.shared.model.pidCallback?(NSNumber(value: pid), error)
-                        DataManager.shared.model.pidCallback = nil
-                    }
-                })
+                    })
+                    .background(.black)
+                    .frame(width: effectiveWidth, height: geometry.size.height)
+                    if isiPhoneMode { Spacer(minLength: 0) }
+                }
+                .frame(width: geometry.size.width, height: geometry.size.height)
                 .background(.black)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .ignoresSafeArea(.all, edges: .all)
             .overlay(alignment: exitButtonOnRight ? .topTrailing : .topLeading) {
