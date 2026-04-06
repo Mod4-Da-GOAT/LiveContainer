@@ -287,7 +287,6 @@ func setMode(_ mode: AppLaunchMode) {
                                 }
                                 
                                 ForEach(filteredHiddenApps, id: \.self) { app in
-                                    LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames, updateAction: updateAction(for: app))
                                     appRow(app: app, isHidden: true)
                                 }
                             }
@@ -309,7 +308,6 @@ func setMode(_ mode: AppLaunchMode) {
                             }
                             ForEach(filteredHiddenApps, id: \.self) { app in
                                 if sharedModel.isHiddenAppUnlocked {
-                                    LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames, updateAction: updateAction(for: app))
                                     appRow(app: app, isHidden: true)
                                 } else {
                                     LCAppSkeletonBanner()
@@ -1464,7 +1462,7 @@ func setMode(_ mode: AppLaunchMode) {
     @ViewBuilder
     func appRow(app: LCAppModel, isHidden: Bool) -> some View {
         ZStack(alignment: .leading) {
-            LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames, updateAction: isHidden ? nil : updateAction(for: app))
+            LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames, updateAction: updateAction(for: app))
                 .padding(.leading, isMultiSelectMode ? 36 : 0)
                 .animation(.easeInOut(duration: 0.2), value: isMultiSelectMode)
                 .allowsHitTesting(!isMultiSelectMode && !isDeleting)
