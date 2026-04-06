@@ -261,16 +261,8 @@ func setMode(_ mode: AppLaunchMode) {
                                 }
                                 
                                 ForEach(filteredHiddenApps, id: \.self) { app in
-                                    LCAppBanner(
-                                        appModel: app,
-                                        delegate: self,
-                                        appDataFolders: $appDataFolderNames,
-                                        tweakFolders: $tweakFolderNames,
-                                        updateAction: updateAction(for: app)
-                                    )
-                                    .overlay(alignment: .bottom) {
-                                        appRow(app: app, isHidden: true)
-                                    }
+                                    LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames, updateAction: updateAction(for: app))
+                                    appRow(app: app, isHidden: true)
                                 }
                             }
                             .padding()
@@ -291,15 +283,8 @@ func setMode(_ mode: AppLaunchMode) {
                             }
                             ForEach(filteredHiddenApps, id: \.self) { app in
                                 if sharedModel.isHiddenAppUnlocked {
-                                    LCAppBanner(
-                                        appModel: app,
-                                        delegate: self,
-                                        appDataFolders: $appDataFolderNames,
-                                        tweakFolders: $tweakFolderNames,
-                                        updateAction: updateAction(for: app),
-                                        isHidden: true,
-                                        showRow: true
-                                    )
+                                    LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames, updateAction: updateAction(for: app))
+                                    appRow(app: app, isHidden: true)
                                 } else {
                                     LCAppSkeletonBanner()
                                 }
