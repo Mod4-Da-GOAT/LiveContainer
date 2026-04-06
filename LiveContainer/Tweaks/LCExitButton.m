@@ -30,21 +30,22 @@ static void lceb_kill(void) {
 }
 
 // ─── Relaunch LC ──────────────────────────────────────────────
-// Opens the LC URL scheme (bypassing canOpenURL, which always returns NO
-// from inside the guest because livecontainer:// is not in the guest plist's
-// LSApplicationQueriesSchemes). Then kills the process so iOS processes the
-// pending open request and launches a fresh LC.
+// In single-app mode the guest runs inside the LC process. Clear the pending
+// app selection first so LC relaunches to its own UI rather than re-launching
+// the guest. Then open the relaunch URL and kill.
 static void lceb_relaunchLC(void) {
+    // Clear the pending app selection so LC shows its own UI on next launch.
+    [g_lcDefaults removeObjectForKey:@"selected"];
+    [g_lcDefaults removeObjectForKey:@"selectedContainer"];
+    [g_lcDefaults synchronize];
+
     NSString *scheme = g_lcScheme ?: @"livecontainer";
     NSURL *url = [NSURL URLWithString:
         [NSString stringWithFormat:@"%@://livecontainer-relaunch", scheme]];
     UIApplication *app = [NSClassFromString(@"UIApplication") sharedApplication];
 
-    // Open the URL twice (same as launchToGuestApp with tries=2), each in a nested
-    // completionHandler so the kill fires only after both opens have been dispatched.
     [app openURL:url options:@{} completionHandler:^(BOOL s1) {
         [app openURL:url options:@{} completionHandler:^(BOOL s2) {
-            // Dispatch to main queue to ensure we're not inside any UIKit callback stack
             dispatch_async(dispatch_get_main_queue(), ^{
                 lceb_kill();
             });
