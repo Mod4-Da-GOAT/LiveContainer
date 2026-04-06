@@ -201,15 +201,41 @@ func setMode(_ mode: AppLaunchMode) {
         return map
     }
 
+    /// Compares two semantic version strings (e.g. "1.2.3").
+    /// Returns true if `sourceVersion` is newer than `installedVersion`.
+    private func isSourceVersionNewer(_ sourceVersion: String, than installedVersion: String) -> Bool {
+        let sourceComponents = sourceVersion.split(separator: ".").compactMap { Int($0) }
+        let installedComponents = installedVersion.split(separator: ".").compactMap { Int($0) }
+        let maxLength = max(sourceComponents.count, installedComponents.count)
+        for i in 0..<maxLength {
+            let s = i < sourceComponents.count ? sourceComponents[i] : 0
+            let installed = i < installedComponents.count ? installedComponents[i] : 0
+            if s != installed { return s > installed }
+        }
+        return false
+    }
+
     private func updateAction(for app: LCAppModel) -> (() -> Void)? {
         guard let bundleId = app.appInfo.bundleIdentifier(),
               let sourceApp = altStoreSourceAppsByBundleId[bundleId],
-              let sourceVersion = sourceApp.latestVersion?.version,
-              let installedVersion = app.appInfo.version(),
-              installedVersion != sourceVersion,
-              let downloadURL = sourceApp.latestVersion?.downloadURL else {
+              let installedVersion = app.appInfo.version() else {
             return nil
         }
+
+        // Find the newest version from the source that is actually newer than what's installed.
+        // `versions` is sorted newest-first per the AltStore source spec.
+        let candidateVersion: AltStoreSourceAppVersion?
+        if !sourceApp.versions.isEmpty {
+            candidateVersion = sourceApp.versions.first { isSourceVersionNewer($0.version, than: installedVersion) }
+        } else if let latest = sourceApp.latestVersion,
+                  isSourceVersionNewer(latest.version, than: installedVersion) {
+            candidateVersion = latest
+        } else {
+            candidateVersion = nil
+        }
+
+        guard let updateVersion = candidateVersion else { return nil }
+        let downloadURL = updateVersion.downloadURL
 
         return {
             withAnimation {
