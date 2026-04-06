@@ -96,6 +96,8 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
     @State private var isViewAppeared = false
     
     @ObservedObject var searchContext = SearchContext()
+    @StateObject private var altStoreSourcesViewModel = AltStoreSourcesViewModel()
+
     
     // Used to force NavigationView redraw on pop and prevent toolbar animation glitch
     @State private var navRefreshID = UUID()
@@ -187,7 +189,38 @@ func setMode(_ mode: AppLaunchMode) {
             }
         }
     }
-    
+
+    private var altStoreSourceAppsByBundleId: [String: AltStoreSourceApp] {
+        var map: [String: AltStoreSourceApp] = [:]
+        for item in altStoreSourcesViewModel.sources {
+            guard let source = item.source else { continue }
+            for sourceApp in source.apps {
+                map[sourceApp.bundleIdentifier] = sourceApp
+            }
+        }
+        return map
+    }
+
+    private func updateAction(for app: LCAppModel) -> (() -> Void)? {
+        guard let bundleId = app.appInfo.bundleIdentifier(),
+              let sourceApp = altStoreSourceAppsByBundleId[bundleId],
+              let sourceVersion = sourceApp.latestVersion?.version,
+              let installedVersion = app.appInfo.version(),
+              installedVersion != sourceVersion,
+              let downloadURL = sourceApp.latestVersion?.downloadURL else {
+            return nil
+        }
+
+        return {
+            withAnimation {
+                DataManager.shared.model.selectedTab = .apps
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                NotificationCenter.default.post(name: NSNotification.InstallAppNotification, object: ["url": downloadURL])
+            }
+        }
+    }
+
     init(appDataFolderNames: Binding<[String]>, tweakFolderNames: Binding<[String]>) {
         _installOptions = State(initialValue: [])
         _appDataFolderNames = appDataFolderNames
@@ -228,6 +261,7 @@ func setMode(_ mode: AppLaunchMode) {
                                 }
                                 
                                 ForEach(filteredHiddenApps, id: \.self) { app in
+                                    LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames, updateAction: updateAction(for: app))
                                     appRow(app: app, isHidden: true)
                                 }
                             }
@@ -249,6 +283,7 @@ func setMode(_ mode: AppLaunchMode) {
                             }
                             ForEach(filteredHiddenApps, id: \.self) { app in
                                 if sharedModel.isHiddenAppUnlocked {
+                                    LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames, updateAction: updateAction(for: app))
                                     appRow(app: app, isHidden: true)
                                 } else {
                                     LCAppSkeletonBanner()
@@ -1403,7 +1438,7 @@ func setMode(_ mode: AppLaunchMode) {
     @ViewBuilder
     func appRow(app: LCAppModel, isHidden: Bool) -> some View {
         ZStack(alignment: .leading) {
-            LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames)
+            LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames, updateAction: updateAction(for: app))
                 .padding(.leading, isMultiSelectMode ? 36 : 0)
                 .animation(.easeInOut(duration: 0.2), value: isMultiSelectMode)
                 .allowsHitTesting(!isMultiSelectMode && !isDeleting)
