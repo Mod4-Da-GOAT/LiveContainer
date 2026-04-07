@@ -158,9 +158,8 @@ final class AltStoreSourcesViewModel: ObservableObject {
     
     init() {
         loadStoredSources()
-        Task {
-            await refreshAllSources()
-        }
+        // Network refresh is triggered lazily when the sources or updates tab is first opened,
+        // not at app launch, to avoid slowing down startup.
     }
     
     func addSource(from rawValue: String) async -> String? {
@@ -481,7 +480,6 @@ private extension Color {
 }
 
 struct LCSourcesView: View {
-    @StateObject private var viewModel = AltStoreSourcesViewModel()
     @State private var errorMessage: String?
     @State private var sourcePendingRemoval: AltStoreSourcesViewModel.SourceItem?
     @ObservedObject public var searchContext = SearchContext()
@@ -489,6 +487,7 @@ struct LCSourcesView: View {
     @State private var isManagingSources = false
     
     @EnvironmentObject private var sharedModel : SharedModel
+    private var viewModel: AltStoreSourcesViewModel { sharedModel.sourcesViewModel }
     
     @State private var isViewAppeared = false
     
@@ -616,10 +615,13 @@ struct LCSourcesView: View {
         }
         .onAppear {
             expandedSources = []
+            // Trigger network refresh lazily on first appear instead of at app launch
             if !isViewAppeared {
-                guard sharedModel.selectedTab == .sources, let link = sharedModel.deepLink else { return }
-                sharedModel.deepLink = nil
-                handleURL(url: link)
+                Task { await viewModel.refreshAllSources() }
+                if sharedModel.selectedTab == .sources, let link = sharedModel.deepLink {
+                    sharedModel.deepLink = nil
+                    handleURL(url: link)
+                }
                 isViewAppeared = true
             }
         }

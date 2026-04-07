@@ -8,12 +8,10 @@ import SwiftUI
 struct LCUpdatesView: View {
     @EnvironmentObject private var sharedModel: SharedModel
 
-    /// Each entry: the installed app model + the best available update version
     private struct UpdateEntry: Identifiable {
         let id: ObjectIdentifier
         let app: LCAppModel
         let newVersion: AltStoreSourceAppVersion
-
         init(app: LCAppModel, newVersion: AltStoreSourceAppVersion) {
             self.id = ObjectIdentifier(app)
             self.app = app
@@ -21,9 +19,8 @@ struct LCUpdatesView: View {
         }
     }
 
-    @State private var isRefreshing = false
+    @State private var hasAppeared = false
     @State private var isUpdatingAll = false
-    @State private var updatingBundleIds: Set<String> = []
 
     private var allApps: [LCAppModel] {
         sharedModel.apps + sharedModel.hiddenApps
@@ -45,7 +42,8 @@ struct LCUpdatesView: View {
 
     var body: some View {
         NavigationView {
-            Group {
+            // Content fills the full page — no Group wrapper
+            ZStack {
                 if sharedModel.sourcesViewModel.isRefreshingAll && updateEntries.isEmpty {
                     VStack(spacing: 16) {
                         ProgressView()
@@ -67,12 +65,10 @@ struct LCUpdatesView: View {
                 } else {
                     List(updateEntries) { entry in
                         UpdateRowView(
-                            entry_app: entry.app,
-                            entry_newVersion: entry.newVersion,
-                            isUpdating: updatingBundleIds.contains(entry.app.appInfo.bundleIdentifier() ?? "")
+                            app: entry.app,
+                            newVersion: entry.newVersion
                         ) {
-                            triggerInstall(downloadURL: entry.newVersion.downloadURL,
-                                           bundleId: entry.app.appInfo.bundleIdentifier() ?? "")
+                            triggerInstall(url: entry.newVersion.downloadURL)
                         }
                     }
                     .listStyle(.plain)
@@ -85,7 +81,7 @@ struct LCUpdatesView: View {
                         ProgressView().progressViewStyle(.circular)
                     } else {
                         Button {
-                            Task { await refreshSources() }
+                            Task { await sharedModel.sourcesViewModel.refreshAllSources() }
                         } label: {
                             Image(systemName: "arrow.clockwise")
                         }
@@ -102,74 +98,71 @@ struct LCUpdatesView: View {
                                 Text("Update All").bold()
                             }
                         }
-                        .disabled(isUpdatingAll)
+                        .disabled(isUpdatingAll || !sharedModel.pendingInstallURLs.isEmpty)
                     }
                 }
             }
             .refreshable {
-                await refreshSources()
+                await sharedModel.sourcesViewModel.refreshAllSources()
+            }
+            .onAppear {
+                // Lazy refresh: fire network fetch only on first appear
+                if !hasAppeared {
+                    hasAppeared = true
+                    Task { await sharedModel.sourcesViewModel.refreshAllSources() }
+                }
             }
         }
     }
 
-    private func refreshSources() async {
-        isRefreshing = true
-        await sharedModel.sourcesViewModel.refreshAllSources()
-        isRefreshing = false
-    }
-
-    private func triggerInstall(downloadURL: URL, bundleId: String) {
-        updatingBundleIds.insert(bundleId)
+    private func triggerInstall(url: URL) {
+        // Single-app update: switch to apps tab then let LCAppListView handle it
         withAnimation { DataManager.shared.model.selectedTab = .apps }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
             NotificationCenter.default.post(
                 name: NSNotification.InstallAppNotification,
-                object: ["url": downloadURL]
+                object: ["url": url]
             )
-            // Clear after a short delay — the install dialog will have appeared
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                updatingBundleIds.remove(bundleId)
-            }
         }
     }
 
     private func updateAll() async {
-        isUpdatingAll = true
         let entries = updateEntries
-        // Queue them sequentially with a small delay between each so the
-        // install notification handler can process them one at a time.
-        for entry in entries {
-            guard let bundleId = entry.app.appInfo.bundleIdentifier() else { continue }
-            updatingBundleIds.insert(bundleId)
-            NotificationCenter.default.post(
-                name: NSNotification.InstallAppNotification,
-                object: ["url": entry.newVersion.downloadURL]
-            )
-            try? await Task.sleep(nanoseconds: 400_000_000) // 0.4s between installs
-            updatingBundleIds.remove(bundleId)
+        guard !entries.isEmpty else { return }
+        isUpdatingAll = true
+
+        // Push all URLs into the shared queue. LCAppListView's drainInstallQueue
+        // will dequeue and await each installFromUrl call sequentially, so only
+        // one install dialog runs at a time.
+        let urls = entries.map { $0.newVersion.downloadURL }
+        await MainActor.run {
+            sharedModel.pendingInstallURLs.append(contentsOf: urls)
+            // Switch to apps tab so the user can see progress and respond to alerts
+            withAnimation { DataManager.shared.model.selectedTab = .apps }
+        }
+
+        // Wait until the queue is fully drained before re-enabling the button
+        while !sharedModel.pendingInstallURLs.isEmpty {
+            try? await Task.sleep(nanoseconds: 300_000_000)
         }
         isUpdatingAll = false
-        // Switch to apps tab so the user can see progress
-        withAnimation { DataManager.shared.model.selectedTab = .apps }
     }
 }
 
 // MARK: - Row
 
 private struct UpdateRowView: View {
-    let entry_app: LCAppModel
-    let entry_newVersion: AltStoreSourceAppVersion
-    let isUpdating: Bool
+    let app: LCAppModel
+    let newVersion: AltStoreSourceAppVersion
     let onUpdate: () -> Void
 
     @State private var icon: UIImage
 
-    init(entry_app: LCAppModel, entry_newVersion: AltStoreSourceAppVersion, isUpdating: Bool, onUpdate: @escaping () -> Void) {
-        self.entry_app = entry_app
-        self.entry_newVersion = entry_newVersion
-        self.isUpdating = isUpdating
+    init(app: LCAppModel, newVersion: AltStoreSourceAppVersion, onUpdate: @escaping () -> Void) {
+        self.app = app
+        self.newVersion = newVersion
         self.onUpdate = onUpdate
-        _icon = State(initialValue: entry_app.appInfo.iconIsDarkIcon(false))
+        _icon = State(initialValue: app.appInfo.iconIsDarkIcon(false))
     }
 
     var body: some View {
@@ -180,20 +173,20 @@ private struct UpdateRowView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(entry_app.appInfo.displayName())
+                Text(app.appInfo.displayName())
                     .font(.system(size: 15, weight: .semibold))
                     .lineLimit(1)
                 HStack(spacing: 4) {
-                    Text(entry_app.appInfo.version() ?? "?")
+                    Text(app.appInfo.version() ?? "?")
                         .foregroundStyle(.secondary)
                     Image(systemName: "arrow.right")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
-                    Text(entry_newVersion.version)
+                    Text(newVersion.version)
                         .foregroundStyle(.blue)
                 }
                 .font(.system(size: 12))
-                if let desc = entry_newVersion.localizedDescription, !desc.isEmpty {
+                if let desc = newVersion.localizedDescription, !desc.isEmpty {
                     Text(desc)
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
@@ -203,23 +196,15 @@ private struct UpdateRowView: View {
 
             Spacer()
 
-            Button {
-                onUpdate()
-            } label: {
-                if isUpdating {
-                    ProgressView().progressViewStyle(.circular)
-                        .frame(width: 70, height: 28)
-                } else {
-                    Text("Update")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
-                        .background(Capsule().fill(Color.accentColor))
-                }
+            Button(action: onUpdate) {
+                Text("Update")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(Capsule().fill(Color.accentColor))
             }
             .buttonStyle(.plain)
-            .disabled(isUpdating)
         }
         .padding(.vertical, 6)
     }
