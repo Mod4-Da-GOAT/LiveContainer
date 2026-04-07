@@ -162,7 +162,7 @@ private struct UpdateBannerView: View {
         self.onUpdate = onUpdate
         let img = app.appInfo.iconIsDarkIcon(
             LCUtils.appGroupUserDefault.bool(forKey: "darkModeIcon")
-        )
+        ) ?? UIImage()
         _icon = State(initialValue: img)
         _mainColor = State(initialValue: Self.extractColor(from: img))
     }
@@ -233,7 +233,7 @@ private struct UpdateBannerView: View {
                 .fill(dynamicColors ? mainColor.opacity(0.5) : Color("AppBannerBG"))
         }
         .onChange(of: darkModeIcon) { newVal in
-            let img = app.appInfo.iconIsDarkIcon(newVal)
+            let img = app.appInfo.iconIsDarkIcon(newVal) ?? UIImage()
             icon = img
             mainColor = Self.extractColor(from: img)
         }
