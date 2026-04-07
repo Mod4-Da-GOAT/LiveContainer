@@ -30,27 +30,13 @@ static void lceb_kill(void) {
 }
 
 // ─── Relaunch LC ──────────────────────────────────────────────
-// In single-app mode the guest runs inside the LC process. Clear the pending
-// app selection first so LC relaunches to its own UI rather than re-launching
-// the guest. Then open the relaunch URL and kill.
+// In single-app mode the guest runs inside the LC process.
+// LCSharedUtils.launchToGuestApp opens the LC URL scheme and kills inside
+// the completionHandler — the only reliable pattern for this process model.
+// The bootstrap already cleared "selected" before invokeAppMain ran, so LC
+// will relaunch to its own UI without re-launching the guest.
 static void lceb_relaunchLC(void) {
-    // Clear the pending app selection so LC shows its own UI on next launch.
-    [g_lcDefaults removeObjectForKey:@"selected"];
-    [g_lcDefaults removeObjectForKey:@"selectedContainer"];
-    [g_lcDefaults synchronize];
-
-    NSString *scheme = g_lcScheme ?: @"livecontainer";
-    NSURL *url = [NSURL URLWithString:
-        [NSString stringWithFormat:@"%@://livecontainer-relaunch", scheme]];
-    UIApplication *app = [NSClassFromString(@"UIApplication") sharedApplication];
-
-    [app openURL:url options:@{} completionHandler:^(BOOL s1) {
-        [app openURL:url options:@{} completionHandler:^(BOOL s2) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                lceb_kill();
-            });
-        }];
-    }];
+    [LCSharedUtils launchToGuestApp];
 }
 
 // ─── Floating container view ───────────────────────────────────
