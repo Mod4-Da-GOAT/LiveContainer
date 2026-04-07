@@ -119,25 +119,23 @@ struct MultitaskAppWindow: View {
     var body: some View {
         let isVirtualWindowMode = multitaskMode == .virtualWindow
         if show, let appInfo {
-            GeometryReader { geometry in
-                // AppSceneViewController.viewWillLayoutSubviews reads LCRealIPhoneMode from
-                // lcSharedDefaults (the app group store) and handles centering natively.
-                // We pass geometry.size so the VC knows the full available area.
-                AppSceneViewSwiftUI(show: $show, bundleId: appInfo.bundleId, dataUUID: appInfo.dataUUID, initSize: geometry.size,
-                                    onAppInitialize: { pid, error in
-                    DispatchQueue.main.async {
-                        if error == nil {
-                            self.pid = Int(pid)
-                        } else {
-                            self.errorMessage = error?.localizedDescription
-                        }
-                        DataManager.shared.model.pidCallback?(NSNumber(value: pid), error)
-                        DataManager.shared.model.pidCallback = nil
+            // Use the full screen bounds as initSize so AppSceneViewController always
+            // knows the true available area for iPhone-mode centering calculations.
+            let screenSize = UIScreen.main.bounds.size
+            AppSceneViewSwiftUI(show: $show, bundleId: appInfo.bundleId, dataUUID: appInfo.dataUUID, initSize: screenSize,
+                                onAppInitialize: { pid, error in
+                DispatchQueue.main.async {
+                    if error == nil {
+                        self.pid = Int(pid)
+                    } else {
+                        self.errorMessage = error?.localizedDescription
                     }
-                })
-                .background(.black)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
+                    DataManager.shared.model.pidCallback?(NSNumber(value: pid), error)
+                    DataManager.shared.model.pidCallback = nil
+                }
+            })
+            .background(.black)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .ignoresSafeArea(.all, edges: .all)
             .overlay(alignment: exitButtonOnRight ? .topTrailing : .topLeading) {
                 if showExitButton {
