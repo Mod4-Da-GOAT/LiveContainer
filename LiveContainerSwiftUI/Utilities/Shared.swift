@@ -75,6 +75,10 @@ class SharedModel: ObservableObject {
     /// Shared across all views — loads once, refreshes on demand.
     @MainActor let sourcesViewModel = AltStoreSourcesViewModel()
 
+    /// URLs queued for sequential installation by LCAppListView.
+    /// Push URLs here from anywhere; LCAppListView drains them one-by-one.
+    @Published var pendingInstallURLs: [URL] = []
+
     
     static let isPhone: Bool = {
         UIDevice.current.userInterfaceIdiom == .phone
