@@ -632,6 +632,11 @@ func setMode(_ mode: AppLaunchMode) {
                 Task { await installFromUrl(urlStr: installUrl.absoluteString) }
             }
         }
+        // Drain the bulk-install queue one URL at a time, waiting for each to complete.
+        .onReceive(sharedModel.$pendingInstallURLs) { urls in
+            guard !urls.isEmpty else { return }
+            Task { await drainInstallQueue() }
+        }
         .apply {
             if #available(iOS 19.0, *), SharedModel.isLiquidGlassSearchEnabled {
                 $0
@@ -1391,8 +1396,10 @@ func setMode(_ mode: AppLaunchMode) {
     func closeNavigationView() {
         isNavigationActive = false
         navigateTo = nil
-        // Force NavigationView to re-render without animation, fixing toolbar glitch on pop
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+        // Force NavigationView to re-render without animation, fixing toolbar glitch on pop.
+        // With reduced motion the pop is instant, so we skip the delay entirely.
+        let delay = UIAccessibility.isReduceMotionEnabled ? 0.0 : 0.35
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
             var t = Transaction()
             t.disablesAnimations = true
             withTransaction(t) {
@@ -1468,7 +1475,7 @@ func setMode(_ mode: AppLaunchMode) {
     @ViewBuilder
     func appRow(app: LCAppModel, isHidden: Bool) -> some View {
         ZStack(alignment: .leading) {
-            LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames, updateAction: updateAction(for: app))
+            LCAppBanner(appModel: app, delegate: self, appDataFolders: $appDataFolderNames, tweakFolders: $tweakFolderNames, updateAction: nil)
                 .padding(.leading, isMultiSelectMode ? 36 : 0)
                 .animation(.easeInOut(duration: 0.2), value: isMultiSelectMode)
                 .allowsHitTesting(!isMultiSelectMode && !isDeleting)
@@ -1496,6 +1503,18 @@ func setMode(_ mode: AppLaunchMode) {
         }
     }
 
+    /// Installs URLs from sharedModel.pendingInstallURLs one at a time.
+    /// Each URL is dequeued before starting so concurrent calls self-cancel.
+    func drainInstallQueue() async {
+        while true {
+            // Atomically dequeue the next URL
+            guard !sharedModel.pendingInstallURLs.isEmpty else { return }
+            let url = sharedModel.pendingInstallURLs.removeFirst()
+            // Wait for this install to fully complete before moving to the next
+            await installFromUrl(urlStr: url.absoluteString)
+        }
+    }
+
     func deleteSelectedApps() async {
         guard !selectedAppsForDeletion.isEmpty else { return }
         guard let confirmed = await multiDeleteConfirmAlert.open(), confirmed else { return }
@@ -1513,36 +1532,31 @@ func setMode(_ mode: AppLaunchMode) {
                 try fm.removeItem(atPath: bundlePath)
                 removeApp(app: app)
                 if removeData {
-                    // Remove all named containers
                     for container in app.appInfo.containers {
-                        let containerURL = container.containerURL
-                        if fm.fileExists(atPath: containerURL.path) {
-                            try? fm.removeItem(at: containerURL)
-                        }
-                        // Also remove app group isolation folder if it exists
-                        let appGroupURL = LCPath.appGroupPath.appendingPathComponent(container.folderName)
-                        if fm.fileExists(atPath: appGroupURL.path) {
-                            try? fm.removeItem(at: appGroupURL)
-                        }
-                        let lcGroupAppGroupURL = LCPath.lcGroupAppGroupPath.appendingPathComponent(container.folderName)
-                        if fm.fileExists(atPath: lcGroupAppGroupURL.path) {
-                            try? fm.removeItem(at: lcGroupAppGroupURL)
-                        }
+                        // containerURL already accounts for isShared (private vs group path)
+                        try? fm.removeItem(at: container.containerURL)
+
+                        // App group isolation folders (both private and shared variants)
+                        let privateAppGroup = LCPath.appGroupPath.appendingPathComponent(container.folderName)
+                        try? fm.removeItem(at: privateAppGroup)
+
+                        let sharedAppGroup = LCPath.lcGroupAppGroupPath.appendingPathComponent(container.folderName)
+                        try? fm.removeItem(at: sharedAppGroup)
+
                         LCUtils.removeAppKeychain(dataUUID: container.folderName)
                         DispatchQueue.main.async {
                             self.appDataFolderNames.removeAll { $0 == container.folderName }
                         }
                     }
-                    // Legacy: also try the raw dataUUID folder in case containerInfo was nil
+                    // Legacy: handle apps whose containerInfo was nil but dataUUID exists.
+                    // Bootstrap stores these under both private and shared data paths.
                     if let legacyUUID = app.appInfo.dataUUID {
-                        let legacyURL = LCPath.dataPath.appendingPathComponent(legacyUUID)
-                        if fm.fileExists(atPath: legacyURL.path) {
-                            try? fm.removeItem(at: legacyURL)
-                        }
-                        let legacyGroupURL = LCPath.lcGroupDataPath.appendingPathComponent(legacyUUID)
-                        if fm.fileExists(atPath: legacyGroupURL.path) {
-                            try? fm.removeItem(at: legacyGroupURL)
-                        }
+                        let privateLegacy = LCPath.dataPath.appendingPathComponent(legacyUUID)
+                        try? fm.removeItem(at: privateLegacy)
+
+                        let sharedLegacy = LCPath.lcGroupDataPath.appendingPathComponent(legacyUUID)
+                        try? fm.removeItem(at: sharedLegacy)
+
                         DispatchQueue.main.async {
                             self.appDataFolderNames.removeAll { $0 == legacyUUID }
                         }
