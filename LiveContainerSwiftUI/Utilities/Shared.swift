@@ -73,7 +73,7 @@ class SharedModel: ObservableObject {
     @Published var isInAppSettings = false
 
     /// Shared across all views — loads once, refreshes on demand.
-    let sourcesViewModel = AltStoreSourcesViewModel()
+    @MainActor let sourcesViewModel = AltStoreSourcesViewModel()
 
     
     static let isPhone: Bool = {
