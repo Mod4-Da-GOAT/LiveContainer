@@ -42,15 +42,14 @@ struct LCUpdatesView: View {
 
     var body: some View {
         NavigationView {
-            // Content fills the full page — no Group wrapper
-            ZStack {
+            ScrollView {
                 if sharedModel.sourcesViewModel.isRefreshingAll && updateEntries.isEmpty {
                     VStack(spacing: 16) {
                         ProgressView()
                         Text("Checking for updates…")
                             .foregroundStyle(.secondary)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity, minHeight: 300)
                 } else if updateEntries.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "checkmark.seal.fill")
@@ -61,17 +60,19 @@ struct LCUpdatesView: View {
                         Text("Pull down to check again")
                             .foregroundStyle(.secondary)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity, minHeight: 300)
                 } else {
-                    List(updateEntries) { entry in
-                        UpdateRowView(
-                            app: entry.app,
-                            newVersion: entry.newVersion
-                        ) {
-                            triggerInstall(url: entry.newVersion.downloadURL)
+                    VStack(spacing: 8) {
+                        ForEach(updateEntries) { entry in
+                            UpdateBannerView(
+                                app: entry.app,
+                                newVersion: entry.newVersion
+                            ) {
+                                triggerInstall(url: entry.newVersion.downloadURL)
+                            }
                         }
                     }
-                    .listStyle(.plain)
+                    .padding()
                 }
             }
             .navigationTitle("Updates")
@@ -106,17 +107,16 @@ struct LCUpdatesView: View {
                 await sharedModel.sourcesViewModel.refreshAllSources()
             }
             .onAppear {
-                // Lazy refresh: fire network fetch only on first appear
                 if !hasAppeared {
                     hasAppeared = true
                     Task { await sharedModel.sourcesViewModel.refreshAllSources() }
                 }
             }
         }
+        .navigationViewStyle(.stack)
     }
 
     private func triggerInstall(url: URL) {
-        // Single-app update: switch to apps tab then let LCAppListView handle it
         withAnimation { DataManager.shared.model.selectedTab = .apps }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
             NotificationCenter.default.post(
@@ -130,18 +130,11 @@ struct LCUpdatesView: View {
         let entries = updateEntries
         guard !entries.isEmpty else { return }
         isUpdatingAll = true
-
-        // Push all URLs into the shared queue. LCAppListView's drainInstallQueue
-        // will dequeue and await each installFromUrl call sequentially, so only
-        // one install dialog runs at a time.
         let urls = entries.map { $0.newVersion.downloadURL }
         await MainActor.run {
             sharedModel.pendingInstallURLs.append(contentsOf: urls)
-            // Switch to apps tab so the user can see progress and respond to alerts
             withAnimation { DataManager.shared.model.selectedTab = .apps }
         }
-
-        // Wait until the queue is fully drained before re-enabling the button
         while !sharedModel.pendingInstallURLs.isEmpty {
             try? await Task.sleep(nanoseconds: 300_000_000)
         }
@@ -149,63 +142,121 @@ struct LCUpdatesView: View {
     }
 }
 
-// MARK: - Row
+// MARK: - Banner row matching LCAppBanner style exactly
 
-private struct UpdateRowView: View {
+private struct UpdateBannerView: View {
     let app: LCAppModel
     let newVersion: AltStoreSourceAppVersion
     let onUpdate: () -> Void
 
+    @AppStorage("dynamicColors", store: LCUtils.appGroupUserDefault) var dynamicColors = true
+    @AppStorage("darkModeIcon", store: LCUtils.appGroupUserDefault) var darkModeIcon = false
+    @Environment(\.colorScheme) var colorScheme
+
     @State private var icon: UIImage
+    @State private var mainColor: Color
 
     init(app: LCAppModel, newVersion: AltStoreSourceAppVersion, onUpdate: @escaping () -> Void) {
         self.app = app
         self.newVersion = newVersion
         self.onUpdate = onUpdate
-        _icon = State(initialValue: app.appInfo.iconIsDarkIcon(false))
+        let img = app.appInfo.iconIsDarkIcon(
+            LCUtils.appGroupUserDefault.bool(forKey: "darkModeIcon")
+        )
+        _icon = State(initialValue: img)
+        _mainColor = State(initialValue: Self.extractColor(from: img))
+    }
+
+    private var textColor: Color {
+        let c = dynamicColors ? mainColor : Color("FontColor")
+        return colorScheme == .dark ? c.readableTextColor() : c.readableTextColor()
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(uiImage: icon)
-                .resizable()
-                .frame(width: 52, height: 52)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        HStack {
+            HStack {
+                Image(uiImage: icon)
+                    .resizable()
+                    .frame(width: 60, height: 60)
+                    .clipShape(RoundedRectangle(cornerSize: CGSize(width: 16, height: 16)))
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(app.appInfo.displayName())
-                    .font(.system(size: 15, weight: .semibold))
-                    .lineLimit(1)
-                HStack(spacing: 4) {
-                    Text(app.appInfo.version() ?? "?")
-                        .foregroundStyle(.secondary)
-                    Image(systemName: "arrow.right")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                    Text(newVersion.version)
-                        .foregroundStyle(.blue)
-                }
-                .font(.system(size: 12))
-                if let desc = newVersion.localizedDescription, !desc.isEmpty {
-                    Text(desc)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                VStack(alignment: .leading) {
+                    Text(app.appInfo.displayName())
+                        .font(.system(size: 16)).bold()
+                        .foregroundColor(textColor)
+
+                    // installed version → new version, bundle ID
+                    Text("\(app.appInfo.version() ?? "?") → \(newVersion.version)  ·  \(app.appInfo.bundleIdentifier() ?? "")")
+                        .font(.system(size: 12))
+                        .foregroundColor(.gray)
+
+                    // selected container name
+                    if let container = app.uiSelectedContainer {
+                        Text(container.name)
+                            .font(.system(size: 12))
+                            .foregroundColor(.blue)
+                    }
+
+                    // release notes if available
+                    if let notes = newVersion.localizedDescription, !notes.isEmpty {
+                        Text(notes)
+                            .font(.system(size: 11))
+                            .foregroundColor(textColor.opacity(0.8))
+                            .lineLimit(2)
+                    }
                 }
             }
+            .allowsHitTesting(false)
 
             Spacer()
 
+            // Update button — styled like the Run capsule in LCAppBanner
             Button(action: onUpdate) {
                 Text("Update")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .background(Capsule().fill(Color.accentColor))
+                    .bold()
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                    .frame(height: 32)
+                    .padding(.horizontal, 16)
+                    .minimumScaleFactor(0.1)
             }
             .buttonStyle(.plain)
+            .background(
+                Capsule().fill(dynamicColors ? mainColor : Color("FontColor"))
+            )
+            .clipShape(Capsule())
         }
-        .padding(.vertical, 6)
+        .padding()
+        .frame(minHeight: 88)
+        .background {
+            RoundedRectangle(cornerSize: CGSize(width: 22, height: 22))
+                .fill(dynamicColors ? mainColor.opacity(0.5) : Color("AppBannerBG"))
+        }
+        .onChange(of: darkModeIcon) { newVal in
+            let img = app.appInfo.iconIsDarkIcon(newVal)
+            icon = img
+            mainColor = Self.extractColor(from: img)
+        }
+    }
+
+    // Same color extraction logic as LCAppBanner.extractMainHueColor()
+    static func extractColor(from image: UIImage) -> Color {
+        guard let cgImage = image.cgImage else { return .red }
+        var pixelData = [UInt8](repeating: 0, count: 4)
+        guard let ctx = CGContext(
+            data: &pixelData, width: 1, height: 1,
+            bitsPerComponent: 8, bytesPerRow: 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return .red }
+        ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        let r = CGFloat(pixelData[0]) / 255
+        let g = CGFloat(pixelData[1]) / 255
+        let b = CGFloat(pixelData[2]) / 255
+        var hue: CGFloat = 0, sat: CGFloat = 0, bri: CGFloat = 0, alpha: CGFloat = 0
+        UIColor(red: r, green: g, blue: b, alpha: 1).getHue(&hue, saturation: &sat, brightness: &bri, alpha: &alpha)
+        if bri < 0.1 && sat < 0.1 { return .red }
+        if bri < 0.3 { bri = 0.3 }
+        return Color(hue: hue, saturation: sat, brightness: bri)
     }
 }
