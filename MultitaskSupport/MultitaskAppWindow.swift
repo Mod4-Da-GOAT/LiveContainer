@@ -103,9 +103,10 @@ struct MultitaskAppWindow: View {
     @AppStorage("LCSkipTerminatedScreen", store: LCUtils.appGroupUserDefault) var skipTerminatedScreen = false
     @AppStorage("LCShowExitButton") var showExitButton = true
     @AppStorage("LCExitButtonPosition") var exitButtonOnRight = false  // false = left, true = right
-    @AppStorage("LCRealiPhoneMode") var isiPhoneMode = false
-    // Standard iPhone 14/15 logical width in portrait
-    private let iPhoneWidth: CGFloat = 390
+    // iPhone mode is read from the app group store — same suite that AppSceneViewController reads.
+    // The VC's viewWillLayoutSubviews already handles centering natively; we only need the flag
+    // here to know whether to show the exit button on the correct side when narrowed.
+    @AppStorage("LCRealIPhoneMode", store: LCUtils.appGroupUserDefault) var isiPhoneMode = false
     @StateObject private var exitConfirmAlert = YesNoHelper()
     let pub = NotificationCenter.default.publisher(for: UIScene.didDisconnectNotification)
     init(id: String) {
@@ -119,28 +120,23 @@ struct MultitaskAppWindow: View {
         let isVirtualWindowMode = multitaskMode == .virtualWindow
         if show, let appInfo {
             GeometryReader { geometry in
-                let effectiveWidth = isiPhoneMode ? min(iPhoneWidth, geometry.size.width) : geometry.size.width
-                let initSize = isiPhoneMode ? CGSize(width: effectiveWidth, height: geometry.size.height) : geometry.size
-                HStack(spacing: 0) {
-                    if isiPhoneMode { Spacer(minLength: 0) }
-                    AppSceneViewSwiftUI(show: $show, bundleId: appInfo.bundleId, dataUUID: appInfo.dataUUID, initSize: initSize,
-                                        onAppInitialize: { pid, error in
-                        DispatchQueue.main.async {
-                            if error == nil {
-                                self.pid = Int(pid)
-                            } else {
-                                self.errorMessage = error?.localizedDescription
-                            }
-                            DataManager.shared.model.pidCallback?(NSNumber(value: pid), error)
-                            DataManager.shared.model.pidCallback = nil
+                // AppSceneViewController.viewWillLayoutSubviews reads LCRealIPhoneMode from
+                // lcSharedDefaults (the app group store) and handles centering natively.
+                // We pass geometry.size so the VC knows the full available area.
+                AppSceneViewSwiftUI(show: $show, bundleId: appInfo.bundleId, dataUUID: appInfo.dataUUID, initSize: geometry.size,
+                                    onAppInitialize: { pid, error in
+                    DispatchQueue.main.async {
+                        if error == nil {
+                            self.pid = Int(pid)
+                        } else {
+                            self.errorMessage = error?.localizedDescription
                         }
-                    })
-                    .background(.black)
-                    .frame(width: effectiveWidth, height: geometry.size.height)
-                    if isiPhoneMode { Spacer(minLength: 0) }
-                }
-                .frame(width: geometry.size.width, height: geometry.size.height)
+                        DataManager.shared.model.pidCallback?(NSNumber(value: pid), error)
+                        DataManager.shared.model.pidCallback = nil
+                    }
+                })
                 .background(.black)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .ignoresSafeArea(.all, edges: .all)
             .overlay(alignment: exitButtonOnRight ? .topTrailing : .topLeading) {
