@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import UIKit
 
 class LCContainer : ObservableObject, Hashable {
     @Published var folderName : String
@@ -19,6 +18,9 @@ class LCContainer : ObservableObject, Hashable {
     var bookmarkResolveContinuation: UnsafeContinuation<(), Never>? = nil
     
     @Published var isolateAppGroup : Bool
+    @Published var calculatedSizeInBytes: Int64?
+    @Published var isCalculatingSize = false
+    @Published var sizeCalculationError: String?
     @Published var spoofIdentifierForVendor : Bool {
         didSet {
             if spoofIdentifierForVendor && spoofedIdentifier == nil {
@@ -163,11 +165,73 @@ class LCContainer : ObservableObject, Hashable {
     func reloadInfoPlist() {
         infoDict = NSDictionary(contentsOf: infoDictUrl) as? [String : Any]
     }
-    
-    func loadName() {
-        if infoDict == nil {
-            infoDict = NSDictionary(contentsOf: infoDictUrl) as? [String : Any]
+
+    @MainActor
+    func refreshCalculatedSize() async {
+        guard !isCalculatingSize else {
+            return
         }
+
+        isCalculatingSize = true
+        defer { isCalculatingSize = false }
+        sizeCalculationError = nil
+
+        do {
+            calculatedSizeInBytes = try await Self.calculateContainerSize(at: containerURL)
+        } catch {
+            sizeCalculationError = error.localizedDescription
+        }
+    }
+
+    private static func calculateContainerSize(at containerURL: URL) async throws -> Int64 {
+        try await withThrowingTaskGroup(of: Int64.self) { group in
+            group.addTask(priority: .utility) {
+                let fileManager = FileManager.default
+                let resourceKeys: Set<URLResourceKey> = [
+                    .isRegularFileKey,
+                    .totalFileAllocatedSizeKey,
+                    .fileAllocatedSizeKey,
+                    .fileSizeKey
+                ]
+                let enumerator = fileManager.enumerator(
+                    at: containerURL,
+                    includingPropertiesForKeys: Array(resourceKeys),
+                    options: [],
+                    errorHandler: nil
+                )
+
+                guard let enumerator else {
+                    throw CocoaError(.fileReadUnknown)
+                }
+
+                var totalSize: Int64 = 0
+                for case let fileURL as URL in enumerator {
+                    try Task.checkCancellation()
+
+                    let resourceValues = try fileURL.resourceValues(forKeys: resourceKeys)
+                    guard resourceValues.isRegularFile == true else {
+                        continue
+                    }
+
+                    let fileSize = resourceValues.totalFileAllocatedSize
+                        ?? resourceValues.fileAllocatedSize
+                        ?? resourceValues.fileSize
+                        ?? 0
+                    totalSize += Int64(fileSize)
+                }
+
+                return totalSize
+            }
+
+            guard let totalSize = try await group.next() else {
+                throw CocoaError(.fileReadUnknown)
+            }
+            return totalSize
+        }
+    }
+
+    func loadName() {
+        reloadInfoPlist()
         guard let infoDict else {
             return
         }
