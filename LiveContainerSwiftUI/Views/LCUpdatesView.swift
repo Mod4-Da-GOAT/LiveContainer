@@ -21,6 +21,8 @@ struct LCUpdatesView: View {
 
     @State private var hasAppeared = false
     @State private var isUpdatingAll = false
+    /// Bundle ID of the app currently being downloaded in this view
+    @State private var downloadingBundleId: String? = nil
 
     private var allApps: [LCAppModel] {
         sharedModel.apps + sharedModel.hiddenApps
@@ -34,6 +36,7 @@ struct LCUpdatesView: View {
                   let best = LCAppListView.bestUpdateVersion(
                     for: bundleId,
                     installedVersion: installedVersion,
+                    installedName: app.appInfo.displayName(),
                     sources: sources
                   ) else { return nil }
             return UpdateEntry(app: app, newVersion: best)
@@ -64,11 +67,18 @@ struct LCUpdatesView: View {
                 } else {
                     VStack(spacing: 8) {
                         ForEach(updateEntries) { entry in
+                            let bundleId = entry.app.appInfo.bundleIdentifier() ?? ""
+                            let isThisDownloading = downloadingBundleId == bundleId
+                                && sharedModel.downloadHelper.isDownloading
                             UpdateBannerView(
                                 app: entry.app,
-                                newVersion: entry.newVersion
+                                newVersion: entry.newVersion,
+                                isDownloading: isThisDownloading,
+                                downloadProgress: sharedModel.downloadHelper.downloadProgress,
+                                downloadedSize: sharedModel.downloadHelper.downloadedSize,
+                                totalSize: sharedModel.downloadHelper.totalSize
                             ) {
-                                triggerInstall(url: entry.newVersion.downloadURL)
+                                triggerInstall(entry: entry)
                             }
                         }
                     }
@@ -78,15 +88,17 @@ struct LCUpdatesView: View {
             .navigationTitle("Updates")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    if sharedModel.sourcesViewModel.isRefreshingAll {
-                        ProgressView().progressViewStyle(.circular)
-                    } else {
-                        Button {
-                            Task { await sharedModel.sourcesViewModel.refreshAllSources() }
-                        } label: {
+                    // Refresh button — disabled while already refreshing
+                    Button {
+                        Task { await sharedModel.sourcesViewModel.refreshAllSources() }
+                    } label: {
+                        if sharedModel.sourcesViewModel.isRefreshingAll {
+                            ProgressView().progressViewStyle(.circular)
+                        } else {
                             Image(systemName: "arrow.clockwise")
                         }
                     }
+                    .disabled(sharedModel.sourcesViewModel.isRefreshingAll)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     if !updateEntries.isEmpty {
@@ -103,8 +115,11 @@ struct LCUpdatesView: View {
                     }
                 }
             }
+            // Pull-to-refresh disabled while already checking
             .refreshable {
-                await sharedModel.sourcesViewModel.refreshAllSources()
+                if !sharedModel.sourcesViewModel.isRefreshingAll {
+                    await sharedModel.sourcesViewModel.refreshAllSources()
+                }
             }
             .onAppear {
                 if !hasAppeared {
@@ -116,13 +131,22 @@ struct LCUpdatesView: View {
         .navigationViewStyle(.stack)
     }
 
-    private func triggerInstall(url: URL) {
-        withAnimation { DataManager.shared.model.selectedTab = .apps }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-            NotificationCenter.default.post(
-                name: NSNotification.InstallAppNotification,
-                object: ["url": url]
-            )
+    private func triggerInstall(entry: UpdateEntry) {
+        guard let bundleId = entry.app.appInfo.bundleIdentifier() else { return }
+        downloadingBundleId = bundleId
+        // Mark as update so the toolbar indicator in the apps page is suppressed
+        sharedModel.downloadHelper.isUpdate = true
+        sharedModel.downloadHelper.appName = entry.app.appInfo.displayName()
+        // Post the install notification — LCAppListView handles download + install
+        // After download completes it switches to apps tab and shows per-app progress
+        NotificationCenter.default.post(
+            name: NSNotification.InstallAppNotification,
+            object: ["url": entry.newVersion.downloadURL]
+        )
+        // Clear downloadingBundleId once download finishes
+        Task {
+            while sharedModel.downloadHelper.isDownloading { try? await Task.sleep(nanoseconds: 200_000_000) }
+            await MainActor.run { downloadingBundleId = nil }
         }
     }
 
@@ -142,11 +166,15 @@ struct LCUpdatesView: View {
     }
 }
 
-// MARK: - Banner row matching LCAppBanner style exactly
+// MARK: - Banner row
 
 private struct UpdateBannerView: View {
     let app: LCAppModel
     let newVersion: AltStoreSourceAppVersion
+    let isDownloading: Bool
+    let downloadProgress: Float
+    let downloadedSize: Int64
+    let totalSize: Int64
     let onUpdate: () -> Void
 
     @AppStorage("dynamicColors", store: LCUtils.appGroupUserDefault) var dynamicColors = true
@@ -156,9 +184,16 @@ private struct UpdateBannerView: View {
     @State private var icon: UIImage
     @State private var mainColor: Color
 
-    init(app: LCAppModel, newVersion: AltStoreSourceAppVersion, onUpdate: @escaping () -> Void) {
+    init(app: LCAppModel, newVersion: AltStoreSourceAppVersion,
+         isDownloading: Bool, downloadProgress: Float,
+         downloadedSize: Int64, totalSize: Int64,
+         onUpdate: @escaping () -> Void) {
         self.app = app
         self.newVersion = newVersion
+        self.isDownloading = isDownloading
+        self.downloadProgress = downloadProgress
+        self.downloadedSize = downloadedSize
+        self.totalSize = totalSize
         self.onUpdate = onUpdate
         let img = app.appInfo.iconIsDarkIcon(
             LCUtils.appGroupUserDefault.bool(forKey: "darkModeIcon")
@@ -170,6 +205,13 @@ private struct UpdateBannerView: View {
     private var textColor: Color {
         let c = dynamicColors ? mainColor : Color("FontColor")
         return colorScheme == .dark ? c.readableTextColor() : c.readableTextColor()
+    }
+
+    private func formatBytes(_ bytes: Int64) -> String {
+        let f = ByteCountFormatter()
+        f.allowedUnits = [.useKB, .useMB, .useGB]
+        f.countStyle = .file
+        return f.string(fromByteCount: bytes)
     }
 
     var body: some View {
@@ -184,20 +226,14 @@ private struct UpdateBannerView: View {
                     Text(app.appInfo.displayName())
                         .font(.system(size: 16)).bold()
                         .foregroundColor(textColor)
-
-                    // installed version → new version, bundle ID
                     Text("\(app.appInfo.version() ?? "?") → \(newVersion.version)  ·  \(app.appInfo.bundleIdentifier() ?? "")")
                         .font(.system(size: 12))
                         .foregroundColor(.gray)
-
-                    // selected container name
                     if let container = app.uiSelectedContainer {
                         Text(container.name)
                             .font(.system(size: 12))
                             .foregroundColor(.blue)
                     }
-
-                    // release notes if available
                     if let notes = newVersion.localizedDescription, !notes.isEmpty {
                         Text(notes)
                             .font(.system(size: 11))
@@ -210,24 +246,44 @@ private struct UpdateBannerView: View {
 
             Spacer()
 
-            // Update button — styled like the Run capsule in LCAppBanner
-            Button(action: onUpdate) {
-                Text("Update")
-                    .bold()
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-                    .frame(height: 32)
-                    .padding(.horizontal, 16)
-                    .minimumScaleFactor(0.1)
+            if isDownloading {
+                // Download progress indicator centered in place of the Update button
+                VStack(spacing: 4) {
+                    Image(systemName: "arrow.down.circle")
+                        .font(.system(size: 20))
+                        .foregroundColor(dynamicColors ? mainColor : Color("FontColor"))
+                    Text("\(formatBytes(downloadedSize))")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(textColor)
+                    Text("/ \(formatBytes(totalSize))")
+                        .font(.system(size: 10))
+                        .foregroundColor(textColor.opacity(0.7))
+                    ProgressView(value: downloadProgress, total: 1)
+                        .progressViewStyle(.linear)
+                        .frame(width: 60)
+                        .tint(dynamicColors ? mainColor : Color("FontColor"))
+                }
+                .frame(width: 70)
+                .transition(.opacity)
+            } else {
+                Button(action: onUpdate) {
+                    Text("Update")
+                        .bold()
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                        .frame(height: 32)
+                        .padding(.horizontal, 16)
+                        .minimumScaleFactor(0.1)
+                }
+                .buttonStyle(.plain)
+                .background(Capsule().fill(dynamicColors ? mainColor : Color("FontColor")))
+                .clipShape(Capsule())
+                .transition(.opacity)
             }
-            .buttonStyle(.plain)
-            .background(
-                Capsule().fill(dynamicColors ? mainColor : Color("FontColor"))
-            )
-            .clipShape(Capsule())
         }
         .padding()
         .frame(minHeight: 88)
+        .animation(.easeInOut(duration: 0.2), value: isDownloading)
         .background {
             RoundedRectangle(cornerSize: CGSize(width: 22, height: 22))
                 .fill(dynamicColors ? mainColor.opacity(0.5) : Color("AppBannerBG"))
@@ -239,7 +295,6 @@ private struct UpdateBannerView: View {
         }
     }
 
-    // Same color extraction logic as LCAppBanner.extractMainHueColor()
     static func extractColor(from image: UIImage) -> Color {
         guard let cgImage = image.cgImage else { return .red }
         var pixelData = [UInt8](repeating: 0, count: 4)
