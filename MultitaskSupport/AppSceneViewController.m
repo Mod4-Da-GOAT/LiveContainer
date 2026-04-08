@@ -166,10 +166,22 @@ static UIInterfaceOrientation LCInterfaceOrientationForView(UIView *view) {
     
     settings.deviceOrientation = UIDevice.currentDevice.orientation;
     settings.interfaceOrientation = LCInterfaceOrientationForView(self.view);
-    if(UIInterfaceOrientationIsLandscape(settings.interfaceOrientation)) {
-        settings.frame = CGRectMake(0, 0, self.view.frame.size.height, self.view.frame.size.width);
-    } else {
-        settings.frame = CGRectMake(0, 0, self.view.frame.size.width, self.view.frame.size.height);
+    {
+        // Compute the initial frame applying iPhone mode centering from the start,
+        // so the scene never launches at full width before being narrowed later.
+        CGFloat vW = self.view.frame.size.width;
+        CGFloat vH = self.view.frame.size.height;
+        CGFloat fX = 0, fW = vW, fH = vH;
+        if ([NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"]) {
+            CGFloat targetW = MIN(vH * (9.0 / 16.0), vW);
+            fX = (vW - targetW) / 2.0;
+            fW = targetW;
+        }
+        if (UIInterfaceOrientationIsLandscape(settings.interfaceOrientation)) {
+            settings.frame = CGRectMake(0, fX, fH, fW);
+        } else {
+            settings.frame = CGRectMake(fX, 0, fW, fH);
+        }
     }
     //settings.interruptionPolicy = 2; // reconnect
     settings.level = 1;
@@ -312,21 +324,19 @@ self.presenter.presentationView.translatesAutoresizingMaskIntoConstraints = YES;
         }
         CGFloat w = self.view.frame.size.width / self.scaleRatio;
         CGFloat h = self.view.frame.size.height / self.scaleRatio;
-        // In iPhone mode the guest scene is logically sized to targetW×h and always
-        // originates at (0,0) — visual centering is handled by contentView.frame in
-        // viewWillLayoutSubviews. Passing a non-zero origin.x here would shift the
-        // scene's own coordinate system and mis-center it on the host view.
+        CGFloat frameOriginX = 0;
         if ([NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"]) {
             CGFloat targetW = MIN(h * (9.0 / 16.0), w);
+            frameOriginX = (w - targetW) / 2.0;
             w = targetW;
         }
-        CGRect frame = CGRectMake(0, 0, w, h);
+        CGRect frame = CGRectMake(frameOriginX, 0, w, h);
 
         [self.presenter.scene updateSettingsWithBlock:^(UIMutableApplicationSceneSettings *settings) {
             settings.deviceOrientation = UIDevice.currentDevice.orientation;
             settings.interfaceOrientation = self.view.window.windowScene.interfaceOrientation;
             if(UIInterfaceOrientationIsLandscape(settings.interfaceOrientation)) {
-                CGRect frame2 = CGRectMake(0, 0, frame.size.height, frame.size.width);
+                CGRect frame2 = CGRectMake(frame.origin.y, frame.origin.x, frame.size.height, frame.size.width);
                 settings.frame = frame2;
             } else {
                 settings.frame = frame;
