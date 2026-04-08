@@ -14,7 +14,9 @@ public final class DownloadHelper : ObservableObject {
     @Published var isDownloading = false
     @Published var cancelled = false
     /// Display name of the app being downloaded — set before calling download()
-    @Published var appName: String = "" 
+    @Published var appName: String = ""
+    /// True when this download is an update (shows progress in update banner, not toolbar)
+    @Published var isUpdate: Bool = false
     private var downloadTask: URLSessionDownloadTask?
     private var continuation: UnsafeContinuation<(), Never>?
     

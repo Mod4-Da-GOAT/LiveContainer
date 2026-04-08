@@ -67,7 +67,6 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
     @State var webViewURL : URL = URL(string: "about:blank")!
     @StateObject private var webViewUrlInput = InputHelper()
     
-    @ObservedObject var downloadHelper = DownloadHelper()
     @StateObject private var installUrlInput = InputHelper()
     
     @State private var jitLog = ""
@@ -96,6 +95,7 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
     @State private var isViewAppeared = false
     
     @ObservedObject var searchContext = SearchContext()
+    private var downloadHelper: DownloadHelper { sharedModel.downloadHelper }
 
     
     // Used to force NavigationView redraw on pop and prevent toolbar animation glitch
@@ -209,12 +209,19 @@ func setMode(_ mode: AppLaunchMode) {
     static func bestUpdateVersion(
         for bundleId: String,
         installedVersion: String,
+        installedName: String? = nil,
         sources: [AltStoreSourcesViewModel.SourceItem]
     ) -> AltStoreSourceAppVersion? {
         var best: AltStoreSourceAppVersion? = nil
         for item in sources {
             guard let source = item.source else { continue }
             guard let sourceApp = source.apps.first(where: { $0.bundleIdentifier == bundleId }) else { continue }
+            // Name check: if the installed app name is known, require source name to match
+            // (ignoring spaces) to avoid cross-fork updates (e.g. modded → different mod).
+            if let installedName {
+                let normalize: (String) -> String = { $0.filter { !$0.isWhitespace }.lowercased() }
+                guard normalize(sourceApp.name) == normalize(installedName) else { continue }
+            }
             // Prefer the versions array (sorted newest-first); fall back to latestVersion for legacy sources
             let candidates = sourceApp.versions.isEmpty
                 ? [sourceApp.latestVersion].compactMap { $0 }
@@ -240,6 +247,7 @@ func setMode(_ mode: AppLaunchMode) {
         guard let updateVersion = Self.bestUpdateVersion(
             for: bundleId,
             installedVersion: installedVersion,
+            installedName: app.appInfo.displayName(),
             sources: sharedModel.sourcesViewModel.sources
         ) else { return nil }
         let downloadURL = updateVersion.downloadURL
@@ -378,7 +386,7 @@ func setMode(_ mode: AppLaunchMode) {
                 }
                 // ── Leading: download indicator (only while downloading from source) ──
                 ToolbarItem(placement: .topBarLeading) {
-                    if downloadHelper.isDownloading && !isMultiSelectMode {
+                    if downloadHelper.isDownloading && !downloadHelper.isUpdate && !isMultiSelectMode {
                         HStack(spacing: 4) {
                             Image(systemName: "arrow.down.circle")
                                 .foregroundColor(.accentColor)
@@ -1189,13 +1197,24 @@ func setMode(_ mode: AppLaunchMode) {
             if fileManager.fileExists(atPath: destinationURL.path) {
                 try fileManager.removeItem(at: destinationURL)
             }
-            // Set display name for toolbar indicator (strip .ipa/.tipa extension)
-            let rawName = installUrl.lastPathComponent
-            downloadHelper.appName = rawName.hasSuffix(".ipa") ? String(rawName.dropLast(4))
-                : rawName.hasSuffix(".tipa") ? String(rawName.dropLast(5)) : rawName
+            // Only set name/isUpdate when caller hasn't already set them (updates page sets isUpdate=true)
+            if !downloadHelper.isUpdate {
+                let rawName = installUrl.lastPathComponent
+                downloadHelper.appName = rawName.hasSuffix(".ipa") ? String(rawName.dropLast(4))
+                    : rawName.hasSuffix(".tipa") ? String(rawName.dropLast(5)) : rawName
+            }
+            let wasUpdate = downloadHelper.isUpdate
             try await downloadHelper.download(url: installUrl, to: destinationURL)
+            // Reset isUpdate after download completes
+            downloadHelper.isUpdate = false
             if downloadHelper.cancelled {
                 return
+            }
+            // If this was an update download, switch to apps tab so per-app progress is visible
+            if wasUpdate {
+                await MainActor.run {
+                    withAnimation { DataManager.shared.model.selectedTab = .apps }
+                }
             }
             try await installIpaFile(destinationURL)
             try fileManager.removeItem(at: destinationURL)
