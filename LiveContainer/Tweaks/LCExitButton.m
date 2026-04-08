@@ -37,12 +37,29 @@ static void lceb_kill(void) {
 // The bootstrap already cleared "selected" before invokeAppMain ran, so LC
 // relaunches to its own UI.
 // In single-app mode the guest runs inside the LC process.
-// SIGKILL is treated as a crash by iOS and does not trigger a relaunch.
-// exit(0) is a clean termination — iOS will not crash-report it.
-// The bootstrap already cleared "selected" before invokeAppMain ran, so
-// when the user manually relaunches LC it shows its own UI.
+// canOpenURL always returns NO for livecontainer:// from inside the guest
+// (it's not in LSApplicationQueriesSchemes). We bypass it and call openURL
+// directly, then kill with a direct syscall inside the completionHandler —
+// the same pattern launchToGuestApp uses when canOpenURL succeeds.
 static void lceb_relaunchLC(void) {
-    exit(0);
+    NSString *scheme = g_lcScheme ?: @"livecontainer";
+    NSURL *url = [NSURL URLWithString:
+        [NSString stringWithFormat:@"%@://livecontainer-relaunch", scheme]];
+    UIApplication *app = [NSClassFromString(@"UIApplication") sharedApplication];
+
+    // Open twice so iOS has two chances to register the relaunch request,
+    // then kill inside the second completionHandler via direct syscall.
+    [app openURL:url options:@{} completionHandler:^(BOOL s1) {
+        [app openURL:url options:@{} completionHandler:^(BOOL s2) {
+            // Direct kill syscall — same as launchToGuestApp's assembly path
+            __asm__ __volatile__ (
+                "mov x0, #31\n"
+                "mov x16, #26\n"
+                "svc #0x80\n"
+            );
+            raise(SIGKILL);
+        }];
+    }];
 }
 
 // ─── Floating container view ───────────────────────────────────
