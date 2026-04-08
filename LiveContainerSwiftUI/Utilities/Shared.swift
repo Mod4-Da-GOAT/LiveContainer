@@ -79,6 +79,9 @@ class SharedModel: ObservableObject {
     /// Push URLs here from anywhere; LCAppListView drains them one-by-one.
     @Published var pendingInstallURLs: [URL] = []
 
+    /// Shared download helper — observed by both LCAppListView and LCUpdatesView.
+    let downloadHelper = DownloadHelper()
+
     
     static let isPhone: Bool = {
         UIDevice.current.userInterfaceIdiom == .phone
