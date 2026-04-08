@@ -36,19 +36,13 @@ static void lceb_kill(void) {
 // and call openURL directly, killing inside the completionHandler.
 // The bootstrap already cleared "selected" before invokeAppMain ran, so LC
 // relaunches to its own UI.
+// In single-app mode the guest runs inside the LC process.
+// SIGKILL is treated as a crash by iOS and does not trigger a relaunch.
+// exit(0) is a clean termination — iOS will not crash-report it.
+// The bootstrap already cleared "selected" before invokeAppMain ran, so
+// when the user manually relaunches LC it shows its own UI.
 static void lceb_relaunchLC(void) {
-    NSString *scheme = g_lcScheme ?: @"livecontainer";
-    NSURL *url = [NSURL URLWithString:
-        [NSString stringWithFormat:@"%@://livecontainer-relaunch", scheme]];
-    UIApplication *app = [NSClassFromString(@"UIApplication") sharedApplication];
-
-    // Open twice (same as LCSharedUtils.launchToGuestApp with tries=2) to improve
-    // reliability, killing inside the second completionHandler.
-    [app openURL:url options:@{} completionHandler:^(BOOL s1) {
-        [app openURL:url options:@{} completionHandler:^(BOOL s2) {
-            lceb_kill();
-        }];
-    }];
+    exit(0);
 }
 
 // ─── Floating container view ───────────────────────────────────
