@@ -376,6 +376,35 @@ func setMode(_ mode: AppLaunchMode) {
                         }
                     }
                 }
+                // ── Leading: download indicator (only while downloading from source) ──
+                ToolbarItem(placement: .topBarLeading) {
+                    if downloadHelper.isDownloading && !isMultiSelectMode {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.down.circle")
+                                .foregroundColor(.accentColor)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(downloadHelper.appName.isEmpty ? "lc.download.downloading".loc : downloadHelper.appName)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .lineLimit(1)
+                                    .foregroundColor(.primary)
+                                Text("\(formatBytes(downloadHelper.downloadedSize)) / \(formatBytes(downloadHelper.totalSize))")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                            }
+                            Button {
+                                downloadHelper.cancel()
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .transition(.opacity)
+                        .animation(.easeInOut(duration: 0.2), value: downloadHelper.isDownloading)
+                    }
+                }
                 ToolbarItem(placement: .topBarLeading) {
                     if !isMultiSelectMode {
                         if UserDefaults.sideStoreExist() {
@@ -586,7 +615,6 @@ func setMode(_ mode: AppLaunchMode) {
                 installUrlInput.close(result: nil)
             }
         )
-        .downloadAlert(helper: downloadHelper)
         .sheet(isPresented: $jitAlert.show, onDismiss: {
             jitAlert.close(result: false)
         }) {
@@ -896,6 +924,24 @@ func setMode(_ mode: AppLaunchMode) {
                 try fm.removeItem(at: outputFolder)
             }
         }
+
+        // If updating an existing app: show progress on its banner, hide global bar.
+        // If installing new: keep global bar visible (no app to attach progress to).
+        if let appToReplace {
+            DispatchQueue.main.async {
+                appToReplace.isSigningInProgress = true
+                appToReplace.signProgress = 0.0
+                self.installprogressVisible = false
+            }
+            // Feed installProgress percentage into the app model's signProgress
+            let observer = installProgress.observe(\.fractionCompleted) { p, _ in
+                DispatchQueue.main.async {
+                    appToReplace.signProgress = p.fractionCompleted
+                }
+            }
+            _ = observer // retain
+        }
+
         // Move it!
         try fm.moveItem(at: appFolderPath, to: outputFolder)
         let finalNewApp = LCAppInfo(bundlePath: outputFolder.path)
@@ -968,8 +1014,11 @@ func setMode(_ mode: AppLaunchMode) {
         
         DispatchQueue.main.async {
             if let appToReplace {
+                // Clear per-app progress state before swapping the model out
+                appToReplace.isSigningInProgress = false
+                appToReplace.signProgress = 0.0
+
                 let newAppModel = LCAppModel(appInfo: finalNewApp, delegate: self)
-                
                 if appToReplace.uiIsHidden {
                     sharedModel.hiddenApps.removeAll { $0 == appToReplace }
                     sharedModel.hiddenApps.append(newAppModel)
@@ -977,18 +1026,14 @@ func setMode(_ mode: AppLaunchMode) {
                     sharedModel.apps.removeAll { $0 == appToReplace }
                     sharedModel.apps.append(newAppModel)
                 }
-
             } else {
                 let newAppModel = LCAppModel(appInfo: finalNewApp, delegate: self)
                 sharedModel.apps.append(newAppModel)
-                
-                // add url schemes
                 if let urlSchemes = finalNewApp.urlSchemes(), urlSchemes.count > 0 {
                     UserDefaults.lcShared().mutableArrayValue(forKey: "LCGuestURLSchemes")
                         .addObjects(from: urlSchemes as! [Any])
                 }
             }
-
             self.installprogressVisible = false
         }
     }
@@ -1144,7 +1189,10 @@ func setMode(_ mode: AppLaunchMode) {
             if fileManager.fileExists(atPath: destinationURL.path) {
                 try fileManager.removeItem(at: destinationURL)
             }
-            
+            // Set display name for toolbar indicator (strip .ipa/.tipa extension)
+            let rawName = installUrl.lastPathComponent
+            downloadHelper.appName = rawName.hasSuffix(".ipa") ? String(rawName.dropLast(4))
+                : rawName.hasSuffix(".tipa") ? String(rawName.dropLast(5)) : rawName
             try await downloadHelper.download(url: installUrl, to: destinationURL)
             if downloadHelper.cancelled {
                 return
@@ -1410,6 +1458,13 @@ func setMode(_ mode: AppLaunchMode) {
     
     func copyError() {
         UIPasteboard.general.string = errorInfo
+    }
+
+    private func formatBytes(_ bytes: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useKB, .useMB, .useGB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: bytes)
     }
     
     func handleURL(url : URL) {
