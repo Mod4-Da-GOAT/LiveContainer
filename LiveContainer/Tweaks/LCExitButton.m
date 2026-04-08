@@ -3,7 +3,8 @@
 //  LiveContainer
 //
 //  Injects a floating exit button on top of the running guest app (normal mode only).
-//  Pass isLiveProcess=YES to skip — multitask is handled by MultitaskAppWindow.swift.
+//  Pass isLiveProcess=YES or isSideStore=YES to skip.
+//  Multitask mode is handled separately by MultitaskAppWindow.swift.
 //
 
 #import <UIKit/UIKit.h>
@@ -17,31 +18,19 @@ extern NSUserDefaults *lcUserDefaults;
 static NSString       *g_lcScheme   = nil;
 static NSUserDefaults *g_lcDefaults = nil;
 
-// ─── Kill this process so iOS relaunches LC ────────────────────
-static void lceb_kill(void) {
-#if defined(__arm64__)
-    __asm__ __volatile__(
-        "mov x0, #31\n"
-        "mov x16, #26\n"
-        "svc #0x80\n"
-    );
-#endif
-    raise(SIGKILL);
-}
-
 // ─── Relaunch LC ──────────────────────────────────────────────
 // In single-app mode the guest runs inside the LC process.
 // canOpenURL always returns NO for livecontainer:// from inside the guest
-// (it's not in the guest's LSApplicationQueriesSchemes), so we bypass it
-// and call openURL directly, killing inside the completionHandler.
-// The bootstrap already cleared "selected" before invokeAppMain ran, so LC
-// relaunches to its own UI.
-// In single-app mode the guest runs inside the LC process.
-// canOpenURL always returns NO for livecontainer:// from inside the guest
 // (it's not in LSApplicationQueriesSchemes). We bypass it and call openURL
-// directly, then kill with a direct syscall inside the completionHandler —
-// the same pattern launchToGuestApp uses when canOpenURL succeeds.
+// directly, then synchronize NSUserDefaults (so the cleared "selected" key
+// reaches disk before we die), then kill via direct syscall.
 static void lceb_relaunchLC(void) {
+    // Flush NSUserDefaults to disk NOW. LCBootstrap cleared "selected" before
+    // invokeAppMain, but NSUserDefaults writes are async. If we SIGKILL before
+    // the write is committed, LC relaunches with the stale "selected" value and
+    // tries to reboot the guest app → crash. synchronize() forces the flush.
+    [g_lcDefaults synchronize];
+
     NSString *scheme = g_lcScheme ?: @"livecontainer";
     NSURL *url = [NSURL URLWithString:
         [NSString stringWithFormat:@"%@://livecontainer-relaunch", scheme]];
@@ -51,7 +40,6 @@ static void lceb_relaunchLC(void) {
     // then kill inside the second completionHandler via direct syscall.
     [app openURL:url options:@{} completionHandler:^(BOOL s1) {
         [app openURL:url options:@{} completionHandler:^(BOOL s2) {
-            // Direct kill syscall — same as launchToGuestApp's assembly path
             __asm__ __volatile__ (
                 "mov x0, #31\n"
                 "mov x16, #26\n"
@@ -73,7 +61,8 @@ static void lceb_relaunchLC(void) {
     if (!window || !g_lcDefaults) return;
 
     id stored = [g_lcDefaults objectForKey:@"LCShowExitButton"];
-    BOOL showButton = stored ? [g_lcDefaults boolForKey:@"LCShowExitButton"] : YES;
+    // Default is NO — user must explicitly enable in LC settings.
+    BOOL showButton = stored ? [g_lcDefaults boolForKey:@"LCShowExitButton"] : NO;
     if (!showButton) return;
 
     // Remove existing
@@ -185,14 +174,19 @@ static void hook_layoutSubviews(UIWindow *self, SEL _cmd) {
 // ─── Entry point ───────────────────────────────────────────────
 // MUST be called before NUDGuestHooksInit() so lcUserDefaults is
 // still the real LC defaults (not yet redirected to guest container).
-void LCExitButtonGuestHooksInit(BOOL isLiveProcess) {
-    if (isLiveProcess) return;
+// isSideStore must be passed in — it is set by LiveContainerMain before
+// invokeAppMain is called, so it is known at this call site.
+void LCExitButtonGuestHooksInit(BOOL isLiveProcess, BOOL isSideStore) {
+    // Skip for LiveProcess (multitask) and for built-in SideStore —
+    // SideStore has its own back-to-LiveContainer button.
+    if (isLiveProcess || isSideStore) return;
 
     g_lcScheme   = [lcAppUrlScheme copy];
     g_lcDefaults = lcUserDefaults;
 
     id stored = [g_lcDefaults objectForKey:@"LCShowExitButton"];
-    BOOL showButton = stored ? [g_lcDefaults boolForKey:@"LCShowExitButton"] : YES;
+    // Default is NO — user must explicitly enable.
+    BOOL showButton = stored ? [g_lcDefaults boolForKey:@"LCShowExitButton"] : NO;
     if (!showButton) return;
 
     Class cls = [UIWindow class];
