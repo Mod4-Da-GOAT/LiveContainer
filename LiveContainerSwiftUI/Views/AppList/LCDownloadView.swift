@@ -80,3 +80,38 @@ public final class DownloadHelper : ObservableObject {
 }
 
 
+
+class DownloadDelegate: NSObject, URLSessionDownloadDelegate {
+    let progressCallback: (Float, Int64, Int64) -> Void
+    let completeCallback: (URL?, Error?) -> Void
+
+    init(progressCallback: @escaping (Float, Int64, Int64) -> Void,
+         completeCallback: @escaping (URL?, Error?) -> Void) {
+        self.progressCallback = progressCallback
+        self.completeCallback = completeCallback
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+        let progress = Float(totalBytesWritten) / Float(totalBytesExpectedToWrite)
+        progressCallback(progress, totalBytesWritten, totalBytesExpectedToWrite)
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        if let httpResponse = downloadTask.response as? HTTPURLResponse {
+            let statusCode = httpResponse.statusCode
+            if (200...299).contains(statusCode) {
+                completeCallback(location, nil)
+            } else {
+                completeCallback(location, NSError(domain: "", code: statusCode, userInfo: [NSLocalizedDescriptionKey: "HTTP Error: \(statusCode)"]))
+            }
+        } else {
+            completeCallback(location, NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response"]))
+        }
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        if let error {
+            completeCallback(nil, error)
+        }
+    }
+}
