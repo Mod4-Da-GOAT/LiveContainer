@@ -214,8 +214,12 @@ static UIInterfaceOrientation LCInterfaceOrientationForView(UIView *view) {
 self.contentView.layer.anchorPoint = CGPointMake(0, 0);
 self.contentView.layer.position = CGPointMake(0, 0);
 dispatch_async(dispatch_get_main_queue(), ^{
+    // First layout pass: positions contentView (viewWillLayoutSubviews centers it)
     [self.view setNeedsLayout];
     [self.view layoutIfNeeded];
+    // Second pass: update the guest scene's logical frame to match the centered position.
+    // Without this the scene frame stays at origin (0,0) even though contentView moved.
+    [self updateFrameWithSettingsBlock:nil];
 });
 self.presenter.presentationView.autoresizingMask = UIViewAutoresizingNone;
 self.presenter.presentationView.translatesAutoresizingMaskIntoConstraints = YES;

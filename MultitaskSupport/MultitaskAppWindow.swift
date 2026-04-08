@@ -119,23 +119,22 @@ struct MultitaskAppWindow: View {
     var body: some View {
         let isVirtualWindowMode = multitaskMode == .virtualWindow
         if show, let appInfo {
-            // Use the full screen bounds as initSize so AppSceneViewController always
-            // knows the true available area for iPhone-mode centering calculations.
-            let screenSize = UIScreen.main.bounds.size
-            AppSceneViewSwiftUI(show: $show, bundleId: appInfo.bundleId, dataUUID: appInfo.dataUUID, initSize: screenSize,
-                                onAppInitialize: { pid, error in
-                DispatchQueue.main.async {
-                    if error == nil {
-                        self.pid = Int(pid)
-                    } else {
-                        self.errorMessage = error?.localizedDescription
+            GeometryReader { geometry in
+                AppSceneViewSwiftUI(show: $show, bundleId: appInfo.bundleId, dataUUID: appInfo.dataUUID, initSize: geometry.size,
+                                    onAppInitialize: { pid, error in
+                    DispatchQueue.main.async {
+                        if error == nil {
+                            self.pid = Int(pid)
+                        } else {
+                            self.errorMessage = error?.localizedDescription
+                        }
+                        DataManager.shared.model.pidCallback?(NSNumber(value: pid), error)
+                        DataManager.shared.model.pidCallback = nil
                     }
-                    DataManager.shared.model.pidCallback?(NSNumber(value: pid), error)
-                    DataManager.shared.model.pidCallback = nil
-                }
-            })
-            .background(.black)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                })
+                .background(.black)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
             .ignoresSafeArea(.all, edges: .all)
             .overlay(alignment: exitButtonOnRight ? .topTrailing : .topLeading) {
                 if showExitButton {
