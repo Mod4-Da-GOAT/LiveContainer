@@ -115,3 +115,17 @@ class DownloadDelegate: NSObject, URLSessionDownloadDelegate {
         }
     }
 }
+
+public struct DownloadAlertModifier: ViewModifier {
+    @ObservedObject var helper: DownloadHelper
+
+    public func body(content: Content) -> some View {
+        content
+    }
+}
+
+extension View {
+    public func downloadAlert(helper: DownloadHelper) -> some View {
+        self.modifier(DownloadAlertModifier(helper: helper))
+    }
+}
