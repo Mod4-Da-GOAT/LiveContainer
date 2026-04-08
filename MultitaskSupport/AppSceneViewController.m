@@ -312,20 +312,21 @@ self.presenter.presentationView.translatesAutoresizingMaskIntoConstraints = YES;
         }
         CGFloat w = self.view.frame.size.width / self.scaleRatio;
         CGFloat h = self.view.frame.size.height / self.scaleRatio;
-        CGFloat frameOriginX = 0; 
+        // In iPhone mode the guest scene is logically sized to targetW×h and always
+        // originates at (0,0) — visual centering is handled by contentView.frame in
+        // viewWillLayoutSubviews. Passing a non-zero origin.x here would shift the
+        // scene's own coordinate system and mis-center it on the host view.
         if ([NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"]) {
-          CGFloat targetW = MIN(h * (9.0 / 16.0), w);
-          frameOriginX = (w - targetW) / 2.0;
-          w = targetW;
+            CGFloat targetW = MIN(h * (9.0 / 16.0), w);
+            w = targetW;
         }
-       CGRect frame = CGRectMake(frameOriginX, 0, w, h);
-
+        CGRect frame = CGRectMake(0, 0, w, h);
 
         [self.presenter.scene updateSettingsWithBlock:^(UIMutableApplicationSceneSettings *settings) {
             settings.deviceOrientation = UIDevice.currentDevice.orientation;
             settings.interfaceOrientation = self.view.window.windowScene.interfaceOrientation;
             if(UIInterfaceOrientationIsLandscape(settings.interfaceOrientation)) {
-                CGRect frame2 = CGRectMake(frame.origin.x, frame.origin.y, frame.size.height, frame.size.width);
+                CGRect frame2 = CGRectMake(0, 0, frame.size.height, frame.size.width);
                 settings.frame = frame2;
             } else {
                 settings.frame = frame;
