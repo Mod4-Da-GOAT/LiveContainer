@@ -214,12 +214,16 @@ static UIInterfaceOrientation LCInterfaceOrientationForView(UIView *view) {
 self.contentView.layer.anchorPoint = CGPointMake(0, 0);
 self.contentView.layer.position = CGPointMake(0, 0);
 dispatch_async(dispatch_get_main_queue(), ^{
-    // First layout pass: positions contentView (viewWillLayoutSubviews centers it)
+    // Layout pass: viewWillLayoutSubviews centers contentView when LCRealIPhoneMode is on
     [self.view setNeedsLayout];
     [self.view layoutIfNeeded];
-    // Second pass: update the guest scene's logical frame to match the centered position.
-    // Without this the scene frame stays at origin (0,0) even though contentView moved.
-    [self updateFrameWithSettingsBlock:nil];
+    // Update the guest scene's logical frame AFTER layout completes.
+    // The 0.05s debounce in updateFrameWithSettingsBlock means we need to wait
+    // for the layout pass to fully commit before firing the frame update.
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        [self updateFrameWithSettingsBlock:nil];
+    });
 });
 self.presenter.presentationView.autoresizingMask = UIViewAutoresizingNone;
 self.presenter.presentationView.translatesAutoresizingMaskIntoConstraints = YES;
