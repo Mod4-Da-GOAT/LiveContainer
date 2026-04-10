@@ -19,7 +19,6 @@ struct LCUpdatesView: View {
         }
     }
 
-    @State private var hasAppeared = false
     @State private var isUpdatingAll = false
     /// Bundle ID of the app currently being downloaded in this view
     @State private var downloadingBundleId: String? = nil
@@ -122,8 +121,15 @@ struct LCUpdatesView: View {
                 }
             }
             .onAppear {
-                if !hasAppeared {
-                    hasAppeared = true
+                // Always kick off a refresh when the tab appears.
+                // refreshAllSources() is a no-op if already refreshing,
+                // so this is safe to call every time.
+                Task { await sharedModel.sourcesViewModel.refreshAllSources() }
+            }
+            .onChange(of: sharedModel.sourcesViewModel.sources.count) { count in
+                // If sources loaded from disk after the view appeared (count goes
+                // from 0 → N), trigger a network refresh to populate update entries.
+                if count > 0 && !sharedModel.sourcesViewModel.isRefreshingAll {
                     Task { await sharedModel.sourcesViewModel.refreshAllSources() }
                 }
             }

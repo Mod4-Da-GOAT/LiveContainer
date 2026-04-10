@@ -188,9 +188,9 @@ final class AltStoreSourcesViewModel: ObservableObject {
     }
     
     func refreshAllSources() async {
-        guard !sources.isEmpty else {
-            return
-        }
+        // Do not guard on sources.isEmpty — the updates tab calls this on appear
+        // and sources may still be loading from UserDefaults at that point.
+        // An empty loop is harmless.
         isRefreshingAll = true
         for url in sources.map({ $0.url }) {
             await refreshSource(url: url)
@@ -691,11 +691,15 @@ struct LCSourcesView: View {
         withAnimation {
             DataManager.shared.model.selectedTab = .apps
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            NotificationCenter.default.post(name: NSNotification.InstallAppNotification, object: ["url": downloadURL])
+        // Use 0.8s so LCAppListView is fully appeared and its onReceive is live
+        // before the notification fires. Also pass the human-readable app name so
+        // the toolbar indicator shows it instead of the raw filename.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            NotificationCenter.default.post(
+                name: NSNotification.InstallAppNotification,
+                object: ["url": downloadURL, "appName": app.name]
+            )
         }
-
-
     }
     
     private func toggleExpansion(for id: URL) {

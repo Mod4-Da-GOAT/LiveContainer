@@ -665,6 +665,12 @@ func setMode(_ mode: AppLaunchMode) {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.InstallAppNotification)) { obj in
             if let obj2 = obj.object as? [String: Any], let installUrl = obj2["url"] as? URL {
+                // If the sender supplied a human-readable name (e.g. from the sources
+                // view), pre-set it on the download helper before the download starts
+                // so the toolbar shows it immediately rather than the raw filename.
+                if let name = obj2["appName"] as? String, !name.isEmpty {
+                    downloadHelper.appName = name
+                }
                 Task { await installFromUrl(urlStr: installUrl.absoluteString) }
             }
         }
@@ -1142,6 +1148,7 @@ func setMode(_ mode: AppLaunchMode) {
         }
         
         self.installprogressVisible = true
+        self.installProgressPercentage = 0.0   // reset before download so bar starts at 0
         defer {
             self.installprogressVisible = false
         }
