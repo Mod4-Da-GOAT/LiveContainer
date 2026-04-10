@@ -748,7 +748,10 @@ BOOL canAppOpenItself(NSURL* url) {
         }
         return;
     }
-    if(NSUserDefaults.isSideStore && ![url.scheme isEqualToString:@"livecontainer"]) {
+    // When running as built-in SideStore, pass ALL URLs straight through.
+    // Do NOT apply the canAppOpenItself redirect — that would re-wrap
+    // livecontainer://livecontainer-relaunch into open-url and break relaunchLC.
+    if(NSUserDefaults.isSideStore) {
         [self hook_openURL:url options:options completionHandler:completion];
         return;
     }
@@ -769,6 +772,11 @@ BOOL canAppOpenItself(NSURL* url) {
 - (BOOL)hook_canOpenURL:(NSURL *) url {
     if (LCShouldBlockExternalURL(url)) {
         return NO;
+    }
+    // When running as built-in SideStore, skip the LC-scheme checks so
+    // livecontainer:// URLs are evaluated by the real system canOpenURL.
+    if (NSUserDefaults.isSideStore) {
+        return [self hook_canOpenURL:url];
     }
     return canAppOpenItself(url) || shouldRedirectOpenURLToHost(url) || [self hook_canOpenURL:url];
 }
