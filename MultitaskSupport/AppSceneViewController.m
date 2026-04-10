@@ -167,8 +167,9 @@ static UIInterfaceOrientation LCInterfaceOrientationForView(UIView *view) {
     settings.deviceOrientation = UIDevice.currentDevice.orientation;
     settings.interfaceOrientation = LCInterfaceOrientationForView(self.view);
     {
-        // Compute the initial frame applying iPhone mode centering from the start,
-        // so the scene never launches at full width before being narrowed later.
+        // Compute the initial scene frame including iPhone-mode centering offset.
+        // settings.frame is in screen coordinates — origin.x = offsetX places the
+        // scene at the correct horizontal position from first render.
         CGFloat vW = self.view.frame.size.width;
         CGFloat vH = self.view.frame.size.height;
         CGFloat fX = 0, fW = vW, fH = vH;
@@ -222,23 +223,21 @@ static UIInterfaceOrientation LCInterfaceOrientationForView(UIView *view) {
         [weakSelf appTerminationCleanUp];
     }];
     
- [self.contentView addSubview:self.presenter.presentationView];
-self.contentView.layer.anchorPoint = CGPointMake(0, 0);
-self.contentView.layer.position = CGPointMake(0, 0);
-dispatch_async(dispatch_get_main_queue(), ^{
-    // Layout pass: viewWillLayoutSubviews centers contentView when LCRealIPhoneMode is on
-    [self.view setNeedsLayout];
-    [self.view layoutIfNeeded];
-    // Update the guest scene's logical frame AFTER layout completes.
-    // The 0.05s debounce in updateFrameWithSettingsBlock means we need to wait
-    // for the layout pass to fully commit before firing the frame update.
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
-        [self updateFrameWithSettingsBlock:nil];
+    [self.contentView addSubview:self.presenter.presentationView];
+    self.presenter.presentationView.autoresizingMask = UIViewAutoresizingNone;
+    self.presenter.presentationView.translatesAutoresizingMaskIntoConstraints = YES;
+
+    // Size and center contentView immediately so the guest scene renders in the
+    // right place from the very first frame. viewWillLayoutSubviews keeps it
+    // updated whenever the parent view changes size.
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.view setNeedsLayout];
+        [self.view layoutIfNeeded];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            [self updateFrameWithSettingsBlock:nil];
+        });
     });
-});
-self.presenter.presentationView.autoresizingMask = UIViewAutoresizingNone;
-self.presenter.presentationView.translatesAutoresizingMaskIntoConstraints = YES;
 
 
 
@@ -330,6 +329,8 @@ self.presenter.presentationView.translatesAutoresizingMaskIntoConstraints = YES;
             frameOriginX = (w - targetW) / 2.0;
             w = targetW;
         }
+        // origin.x = frameOriginX places the scene at the correct screen position.
+        // Horizontal centering of contentView.frame in viewWillLayoutSubviews matches.
         CGRect frame = CGRectMake(frameOriginX, 0, w, h);
 
         [self.presenter.scene updateSettingsWithBlock:^(UIMutableApplicationSceneSettings *settings) {
