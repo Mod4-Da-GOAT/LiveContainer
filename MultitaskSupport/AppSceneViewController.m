@@ -166,10 +166,23 @@ static UIInterfaceOrientation LCInterfaceOrientationForView(UIView *view) {
     
     settings.deviceOrientation = UIDevice.currentDevice.orientation;
     settings.interfaceOrientation = LCInterfaceOrientationForView(self.view);
-    if(UIInterfaceOrientationIsLandscape(settings.interfaceOrientation)) {
-        settings.frame = CGRectMake(0, 0, self.view.frame.size.height, self.view.frame.size.width);
-    } else {
-        settings.frame = CGRectMake(0, 0, self.view.frame.size.width, self.view.frame.size.height);
+    {
+        // Compute the initial scene frame including iPhone-mode centering offset.
+        // settings.frame is in screen coordinates — origin.x = offsetX places the
+        // scene at the correct horizontal position from first render.
+        CGFloat vW = self.view.frame.size.width;
+        CGFloat vH = self.view.frame.size.height;
+        CGFloat fX = 0, fW = vW, fH = vH;
+        if ([NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"]) {
+            CGFloat targetW = MIN(vH * (9.0 / 16.0), vW);
+            fX = (vW - targetW) / 2.0;
+            fW = targetW;
+        }
+        if (UIInterfaceOrientationIsLandscape(settings.interfaceOrientation)) {
+            settings.frame = CGRectMake(0, fX, fH, fW);
+        } else {
+            settings.frame = CGRectMake(fX, 0, fW, fH);
+        }
     }
     //settings.interruptionPolicy = 2; // reconnect
     settings.level = 1;
@@ -210,15 +223,21 @@ static UIInterfaceOrientation LCInterfaceOrientationForView(UIView *view) {
         [weakSelf appTerminationCleanUp];
     }];
     
- [self.contentView addSubview:self.presenter.presentationView];
-self.contentView.layer.anchorPoint = CGPointMake(0, 0);
-self.contentView.layer.position = CGPointMake(0, 0);
-dispatch_async(dispatch_get_main_queue(), ^{
-    [self.view setNeedsLayout];
-    [self.view layoutIfNeeded];
-});
-self.presenter.presentationView.autoresizingMask = UIViewAutoresizingNone;
-self.presenter.presentationView.translatesAutoresizingMaskIntoConstraints = YES;
+    [self.contentView addSubview:self.presenter.presentationView];
+    self.presenter.presentationView.autoresizingMask = UIViewAutoresizingNone;
+    self.presenter.presentationView.translatesAutoresizingMaskIntoConstraints = YES;
+
+    // Size and center contentView immediately so the guest scene renders in the
+    // right place from the very first frame. viewWillLayoutSubviews keeps it
+    // updated whenever the parent view changes size.
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.view setNeedsLayout];
+        [self.view layoutIfNeeded];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            [self updateFrameWithSettingsBlock:nil];
+        });
+    });
 
 
 
@@ -304,20 +323,21 @@ self.presenter.presentationView.translatesAutoresizingMaskIntoConstraints = YES;
         }
         CGFloat w = self.view.frame.size.width / self.scaleRatio;
         CGFloat h = self.view.frame.size.height / self.scaleRatio;
-        CGFloat frameOriginX = 0; 
+        CGFloat frameOriginX = 0;
         if ([NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"]) {
-          CGFloat targetW = MIN(h * (9.0 / 16.0), w);
-          frameOriginX = (w - targetW) / 2.0;
-          w = targetW;
+            CGFloat targetW = MIN(h * (9.0 / 16.0), w);
+            frameOriginX = (w - targetW) / 2.0;
+            w = targetW;
         }
-       CGRect frame = CGRectMake(frameOriginX, 0, w, h);
-
+        // origin.x = frameOriginX places the scene at the correct screen position.
+        // Horizontal centering of contentView.frame in viewWillLayoutSubviews matches.
+        CGRect frame = CGRectMake(frameOriginX, 0, w, h);
 
         [self.presenter.scene updateSettingsWithBlock:^(UIMutableApplicationSceneSettings *settings) {
             settings.deviceOrientation = UIDevice.currentDevice.orientation;
             settings.interfaceOrientation = self.view.window.windowScene.interfaceOrientation;
             if(UIInterfaceOrientationIsLandscape(settings.interfaceOrientation)) {
-                CGRect frame2 = CGRectMake(frame.origin.x, frame.origin.y, frame.size.height, frame.size.width);
+                CGRect frame2 = CGRectMake(frame.origin.y, frame.origin.x, frame.size.height, frame.size.width);
                 settings.frame = frame2;
             } else {
                 settings.frame = frame;
