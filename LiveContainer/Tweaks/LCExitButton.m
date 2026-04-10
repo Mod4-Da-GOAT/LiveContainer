@@ -20,34 +20,47 @@ static NSUserDefaults *g_lcDefaults = nil;
 
 // ─── Relaunch LC ──────────────────────────────────────────────
 // In single-app mode the guest runs inside the LC process.
-// canOpenURL always returns NO for livecontainer:// from inside the guest
-// (it's not in LSApplicationQueriesSchemes). We bypass it and call openURL
-// directly, then synchronize NSUserDefaults (so the cleared "selected" key
-// reaches disk before we die), then kill via direct syscall.
+// We must NOT use UIApplication.openURL("livecontainer://livecontainer-relaunch") —
+// UIKit+GuestHooks.hook_openURL intercepts it, and because canAppOpenItself()
+// returns YES (this IS the LC process), the hook re-wraps it as
+// "livecontainer://open-url?url=<base64>" before SIGKILL fires. LC then
+// relaunches receiving a mangled open-url instead of showing its own UI → crash.
+//
+// Fix: open LC's bundle ID via LSApplicationWorkspace directly. That private API
+// is not hooked by TweakLoader and goes straight to SpringBoard.
+// "selected" was cleared by LCBootstrap before invokeAppMain; synchronize() ensures
+// that write is on disk before we kill the process.
 static void lceb_relaunchLC(void) {
-    // Flush NSUserDefaults to disk NOW. LCBootstrap cleared "selected" before
-    // invokeAppMain, but NSUserDefaults writes are async. If we SIGKILL before
-    // the write is committed, LC relaunches with the stale "selected" value and
-    // tries to reboot the guest app → crash. synchronize() forces the flush.
+    // Flush the cleared "selected" key to disk before we die.
     [g_lcDefaults synchronize];
 
-    NSString *scheme = g_lcScheme ?: @"livecontainer";
-    NSURL *url = [NSURL URLWithString:
-        [NSString stringWithFormat:@"%@://livecontainer-relaunch", scheme]];
-    UIApplication *app = [NSClassFromString(@"UIApplication") sharedApplication];
+    // lcMainBundle is LC's own bundle (captured before the guest replaced it).
+    // Its bundleIdentifier is the real LC bundle ID (e.g. "com.kdt.livecontainer").
+    NSBundle *lcBundle = [NSClassFromString(@"NSUserDefaults")
+                          performSelector:@selector(lcMainBundle)];
+    NSString *lcBundleID = lcBundle.bundleIdentifier;
+    if (!lcBundleID) {
+        // Derive from the captured URL scheme as a fallback.
+        lcBundleID = [NSString stringWithFormat:@"com.kdt.%@",
+                      g_lcScheme ?: @"livecontainer"];
+    }
 
-    // Open twice so iOS has two chances to register the relaunch request,
-    // then kill inside the second completionHandler via direct syscall.
-    [app openURL:url options:@{} completionHandler:^(BOOL s1) {
-        [app openURL:url options:@{} completionHandler:^(BOOL s2) {
-            __asm__ __volatile__ (
-                "mov x0, #31\n"
-                "mov x16, #26\n"
-                "svc #0x80\n"
-            );
-            raise(SIGKILL);
-        }];
-    }];
+    // Open LC directly through SpringBoard, bypassing UIKit hooks.
+    Class lsws = NSClassFromString(@"LSApplicationWorkspace");
+    [[lsws performSelector:@selector(defaultWorkspace)]
+     performSelector:@selector(openApplicationWithBundleID:)
+     withObject:lcBundleID];
+
+    // Give SpringBoard ~300 ms to register the open before we kill.
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        __asm__ __volatile__ (
+            "mov x0, #31\n"
+            "mov x16, #26\n"
+            "svc #0x80\n"
+        );
+        raise(SIGKILL);
+    });
 }
 
 // ─── Floating container view ───────────────────────────────────
