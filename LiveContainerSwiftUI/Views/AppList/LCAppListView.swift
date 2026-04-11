@@ -90,6 +90,7 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
     @EnvironmentObject private var sharedAppSortManager : LCAppSortManager
     
     @AppStorage("LCMultitaskMode", store: LCUtils.appGroupUserDefault) var multitaskMode: MultitaskMode = .virtualWindow
+    @AppStorage("LCLaunchInMultitaskMode") var launchInMultitaskMode = false
     
     @State private var isViewAppeared = false
     
