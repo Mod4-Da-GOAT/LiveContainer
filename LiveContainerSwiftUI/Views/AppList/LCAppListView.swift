@@ -1147,8 +1147,10 @@ func setMode(_ mode: AppLaunchMode) {
             return
         }
         
-        self.installprogressVisible = true
-        self.installProgressPercentage = 0.0   // reset before download so bar starts at 0
+        // Don't set installprogressVisible yet — the download phase shows progress
+        // via the downloadHelper toolbar indicator. installprogressVisible (the nav bar
+        // spinner + progress bar) only activates during the install/sign phase inside
+        // installIpaFile. This way the download indicator is visible during download.
         defer {
             self.installprogressVisible = false
         }
@@ -1223,6 +1225,9 @@ func setMode(_ mode: AppLaunchMode) {
                     withAnimation { DataManager.shared.model.selectedTab = .apps }
                 }
             }
+            // Download complete — now show the install progress bar (fresh from 0)
+            self.installprogressVisible = true
+            self.installProgressPercentage = 0.0
             try await installIpaFile(destinationURL)
             try fileManager.removeItem(at: destinationURL)
         } catch {
