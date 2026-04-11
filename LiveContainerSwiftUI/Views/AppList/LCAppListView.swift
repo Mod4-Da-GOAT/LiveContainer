@@ -90,7 +90,6 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
     @EnvironmentObject private var sharedAppSortManager : LCAppSortManager
     
     @AppStorage("LCMultitaskMode", store: LCUtils.appGroupUserDefault) var multitaskMode: MultitaskMode = .virtualWindow
-    @AppStorage("LCLaunchInMultitaskMode") var launchInMultitaskMode = false
     
     @State private var isViewAppeared = false
     
@@ -805,7 +804,7 @@ func setMode(_ mode: AppLaunchMode) {
             
             UserDefaults.standard.setValue(urlToOpen.url!.absoluteString, forKey: "launchAppUrlScheme")
             do {
-                try await appToLaunch.runApp(multitask: launchInMultitaskMode)
+                try await appToLaunch.runApp()
             } catch {
                 errorInfo = error.localizedDescription
                 errorShow = true
@@ -1323,7 +1322,7 @@ func setMode(_ mode: AppLaunchMode) {
         //⭐️⭐️⭐️switch mode
     if launchInMultitaskMode {
         do {
-            try await appFound.runApp(multitask: true, containerFolderName: container, forceJIT: forceJIT)
+            try await appFound.runApp(multitask: nil, containerFolderName: container, forceJIT: forceJIT)
         } catch {
             errorInfo = error.localizedDescription
             errorShow = true
@@ -1332,12 +1331,6 @@ func setMode(_ mode: AppLaunchMode) {
           LCUtils.appGroupUserDefault.bool(forKey: "LCRealIPhoneMode") { 
 
 
-        do {
-            try await appFound.runApp(multitask: false, containerFolderName: container, forceJIT: forceJIT)
-        } catch {
-            errorInfo = error.localizedDescription
-            errorShow = true
-        }
         
     }
 }

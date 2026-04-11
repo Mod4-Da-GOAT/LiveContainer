@@ -9,6 +9,13 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
     Portrait = 2
 };
 
+typedef NS_ENUM(NSInteger, MultitaskSpecified){
+    MultitaskSpecifiedDefault = 0,
+    MultitaskSpecifiedNo = 1,
+    MultitaskSpecifiedYes = 2
+};
+
+
 @interface LCAppInfo : NSObject {
     NSMutableDictionary* _info;
     NSMutableDictionary* _infoPlist;
@@ -26,6 +33,7 @@ typedef NS_ENUM(NSInteger, LCOrientationLock){
 @property UIColor* cachedColor;
 @property UIColor* cachedColorDark;
 @property LCOrientationLock orientationLock;
+@property MultitaskSpecified multitaskSpecified;
 @property bool fixFilePickerNew;
 @property bool fixLocalNotification;
 @property bool doUseLCBundleId;

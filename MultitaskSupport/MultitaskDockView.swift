@@ -152,7 +152,7 @@ class AppInfoProvider {
         // MARK: - Layout & Sizing
         static let defaultDockWidth: CGFloat = 90.0
         static let minAdaptiveDockWidth: CGFloat = 50.0
-        static let minAdaptiveIconSize: CGFloat = 30.0
+        static let minAdaptiveIconSize: CGFloat = 10.0
         static let maxIconSize: CGFloat = 100.0
         static let minCollapsedHeight: CGFloat = 60.0
         static let minCollapsedButtonSize: CGFloat = 44.0
@@ -187,9 +187,9 @@ class AppInfoProvider {
             get {
                 let ans = LCUtils.appGroupUserDefault.double(forKey: "LCDockWidth")
                 if ans != 0 {
-                    return ans / 3
+                    return ans / 5
                 } else {
-                    return 30
+                    return 16
                 }
             }
         }
@@ -551,13 +551,6 @@ class AppInfoProvider {
     }
 
     func handleSwipeToHideOrShowGesture(for originalFrame: CGRect, translation: CGSize) -> Bool {
-        let horizontalDistance = abs(translation.width)
-        let verticalDistance = abs(translation.height)
-        
-        guard horizontalDistance > verticalDistance, horizontalDistance > Constants.hideGestureThreshold else {
-            return false
-        }
-        
         let screenWidth = keyWindow!.bounds.width
         let isOnRightSide = originalFrame.origin.x > screenWidth / 2
         let isSwipingAway = (isOnRightSide && translation.width > 0) || (!isOnRightSide && translation.width < 0)
@@ -582,7 +575,7 @@ class AppInfoProvider {
         let horizontalDistance = abs(translation.width)
         let verticalDistance = abs(translation.height)
         
-        guard !self.isDockHidden, horizontalDistance > verticalDistance, horizontalDistance > Constants.hideGestureThreshold else {
+        guard !self.isDockHidden, horizontalDistance > verticalDistance else {
             return false
         }
         
@@ -841,10 +834,11 @@ public struct MultitaskDockSwiftView: View {
     @State private var showTooltip = false
     @State private var tooltipApp: DockAppModel?
     @State private var isMoving: Bool = false
+    @AppStorage("LCHideCollapsedDock", store: LCUtils.appGroupUserDefault) var hideCollapsedDock: Bool = false
     
     // Calculate dynamic padding based on user settings
     private var dynamicPadding: CGFloat {
-        let basePadding: CGFloat = 8
+        let basePadding: CGFloat = 4
         let extraPadding = (dockManager.dockWidth - MultitaskDockManager.Constants.defaultDockWidth) * 0.2
         return max(basePadding, basePadding + extraPadding)
     }
@@ -900,7 +894,7 @@ public struct MultitaskDockSwiftView: View {
             .padding(.vertical, dockManager.dockWidth * (1 - MultitaskDockManager.Constants.iconToWidthRatio) / 2)
             .frame(width: dockManager.dockWidth)
             .scaleEffect(dockManager.isVisible ? 1.0 : 0.8)
-            .opacity(dockManager.isDockHidden ? 0.4 : 1.0)
+            .opacity(dockManager.isDockHidden ? (hideCollapsedDock && dockManager.isCollapsed ? 0.01 : 0.4) : 1.0)
             .offset(dragOffset)
             .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
     }
