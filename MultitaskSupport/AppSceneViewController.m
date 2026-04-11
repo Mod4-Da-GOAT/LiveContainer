@@ -167,21 +167,20 @@ static UIInterfaceOrientation LCInterfaceOrientationForView(UIView *view) {
     settings.deviceOrientation = UIDevice.currentDevice.orientation;
     settings.interfaceOrientation = LCInterfaceOrientationForView(self.view);
     {
-        // Compute the initial scene frame including iPhone-mode centering offset.
-        // settings.frame is in screen coordinates — origin.x = offsetX places the
-        // scene at the correct horizontal position from first render.
+        // Scene frame always starts at (0,0). Centering is done by contentView.frame
+        // in viewWillLayoutSubviews / DecoratedAppSceneViewController. The scene's
+        // own coordinate space does not need an offset — that would shift the guest
+        // app's coordinate system rather than centering the visual.
         CGFloat vW = self.view.frame.size.width;
         CGFloat vH = self.view.frame.size.height;
-        CGFloat fX = 0, fW = vW, fH = vH;
+        CGFloat fW = vW, fH = vH;
         if ([NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"]) {
-            CGFloat targetW = MIN(vH * (9.0 / 16.0), vW);
-            fX = (vW - targetW) / 2.0;
-            fW = targetW;
+            fW = MIN(vH * (9.0 / 16.0), vW);
         }
         if (UIInterfaceOrientationIsLandscape(settings.interfaceOrientation)) {
-            settings.frame = CGRectMake(0, fX, fH, fW);
+            settings.frame = CGRectMake(0, 0, fH, fW);
         } else {
-            settings.frame = CGRectMake(fX, 0, fW, fH);
+            settings.frame = CGRectMake(0, 0, fW, fH);
         }
     }
     //settings.interruptionPolicy = 2; // reconnect
@@ -323,21 +322,26 @@ static UIInterfaceOrientation LCInterfaceOrientationForView(UIView *view) {
         }
         CGFloat w = self.view.frame.size.width / self.scaleRatio;
         CGFloat h = self.view.frame.size.height / self.scaleRatio;
-        CGFloat frameOriginX = 0;
         if ([NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"]) {
             CGFloat targetW = MIN(h * (9.0 / 16.0), w);
-            frameOriginX = (w - targetW) / 2.0;
+            // In native-window (fullscreen) mode the scene frame is in screen
+            // coordinates, so we offset to center. In virtual-window (windowed)
+            // mode the frame origin is always (0,0) — centering is purely a
+            // contentView.frame concern handled by viewWillLayoutSubviews and
+            // DecoratedAppSceneViewController.
+            if (self.isNativeWindow) {
+                // no-op: native window uses full-screen coords — center offset
+                // is not needed here because the scene fills the whole display.
+            }
             w = targetW;
         }
-        // origin.x = frameOriginX places the scene at the correct screen position.
-        // Horizontal centering of contentView.frame in viewWillLayoutSubviews matches.
-        CGRect frame = CGRectMake(frameOriginX, 0, w, h);
+        CGRect frame = CGRectMake(0, 0, w, h);
 
         [self.presenter.scene updateSettingsWithBlock:^(UIMutableApplicationSceneSettings *settings) {
             settings.deviceOrientation = UIDevice.currentDevice.orientation;
             settings.interfaceOrientation = self.view.window.windowScene.interfaceOrientation;
             if(UIInterfaceOrientationIsLandscape(settings.interfaceOrientation)) {
-                CGRect frame2 = CGRectMake(frame.origin.y, frame.origin.x, frame.size.height, frame.size.width);
+                CGRect frame2 = CGRectMake(0, 0, frame.size.height, frame.size.width);
                 settings.frame = frame2;
             } else {
                 settings.frame = frame;
