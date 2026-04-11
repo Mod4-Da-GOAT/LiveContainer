@@ -15,8 +15,14 @@
 // Captured at init time, before bundle/defaults swap
 extern NSString       *lcAppUrlScheme;
 extern NSUserDefaults *lcUserDefaults;
+extern NSBundle       *lcMainBundle;   // LC's real bundle, set by LCBootstrap before invokeAppMain
 static NSString       *g_lcScheme   = nil;
 static NSUserDefaults *g_lcDefaults = nil;
+
+@interface LSApplicationWorkspace : NSObject
++ (instancetype)defaultWorkspace;
+- (BOOL)openApplicationWithBundleID:(NSString *)bundleID;
+@end
 
 // ─── Relaunch LC ──────────────────────────────────────────────
 // In single-app mode the guest runs inside the LC process.
@@ -26,32 +32,26 @@ static NSUserDefaults *g_lcDefaults = nil;
 // "livecontainer://open-url?url=<base64>" before SIGKILL fires. LC then
 // relaunches receiving a mangled open-url instead of showing its own UI → crash.
 //
-// Fix: open LC's bundle ID via LSApplicationWorkspace directly. That private API
-// is not hooked by TweakLoader and goes straight to SpringBoard.
+// Fix: open LC via LSApplicationWorkspace.openApplicationWithBundleID: which is
+// not hooked by TweakLoader and goes straight to SpringBoard.
 // "selected" was cleared by LCBootstrap before invokeAppMain; synchronize() ensures
-// that write is on disk before we kill the process.
+// that write is on disk before the process is killed.
 static void lceb_relaunchLC(void) {
     // Flush the cleared "selected" key to disk before we die.
     [g_lcDefaults synchronize];
 
-    // lcMainBundle is LC's own bundle (captured before the guest replaced it).
-    // Its bundleIdentifier is the real LC bundle ID (e.g. "com.kdt.livecontainer").
-    NSBundle *lcBundle = [NSClassFromString(@"NSUserDefaults")
-                          performSelector:@selector(lcMainBundle)];
-    NSString *lcBundleID = lcBundle.bundleIdentifier;
+    // Use the real LC bundle ID from lcMainBundle (set by LCBootstrap before
+    // invokeAppMain, so it reflects the actual LC bundle, not the guest).
+    NSString *lcBundleID = lcMainBundle.bundleIdentifier;
     if (!lcBundleID) {
-        // Derive from the captured URL scheme as a fallback.
         lcBundleID = [NSString stringWithFormat:@"com.kdt.%@",
                       g_lcScheme ?: @"livecontainer"];
     }
 
-    // Open LC directly through SpringBoard, bypassing UIKit hooks.
-    Class lsws = NSClassFromString(@"LSApplicationWorkspace");
-    [[lsws performSelector:@selector(defaultWorkspace)]
-     performSelector:@selector(openApplicationWithBundleID:)
-     withObject:lcBundleID];
+    // Open LC directly via SpringBoard, bypassing all UIKit/TweakLoader hooks.
+    [[LSApplicationWorkspace defaultWorkspace] openApplicationWithBundleID:lcBundleID];
 
-    // Give SpringBoard ~300 ms to register the open before we kill.
+    // Give SpringBoard ~300 ms to register the open request before we kill.
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
         __asm__ __volatile__ (
