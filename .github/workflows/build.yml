@@ -86,6 +86,13 @@ jobs:
           name: ${{ env.scheme }}+SideStore.ipa
           path: ${{ env.scheme }}+SideStore.ipa
 
+      - name: Upload raw build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-raw-log
+          path: /tmp/xcodebuild.log
+
   release__nightly:
     name: Nightly Release
     permissions:
