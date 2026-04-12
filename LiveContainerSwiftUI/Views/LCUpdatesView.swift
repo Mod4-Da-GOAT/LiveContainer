@@ -227,16 +227,18 @@ struct LCUpdatesView: View {
         }
 
         let urls = entries.map { $0.newVersion.downloadURL }
-        await MainActor.run {
-            // Append to the shared install queue; LCAppListView drains them one-by-one.
-            sharedModel.pendingInstallURLs.append(contentsOf: urls)
-            withAnimation { DataManager.shared.model.selectedTab = .apps }
-        }
+        enqueueInstallURLs(urls)
         while !sharedModel.pendingInstallURLs.isEmpty {
             try? await Task.sleep(nanoseconds: 300_000_000)
         }
         queuedBundleIds.removeAll()
         isUpdatingAll = false
+    }
+
+    @MainActor
+    private func enqueueInstallURLs(_ urls: [URL]) {
+        sharedModel.pendingInstallURLs.append(contentsOf: urls)
+        withAnimation { DataManager.shared.model.selectedTab = .apps }
     }
 
     @MainActor
