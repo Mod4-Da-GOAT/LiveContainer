@@ -343,7 +343,7 @@ struct LCSettingsView: View {
                         }
                     }
                 } header: {
-                    Text("About Fork Owner")
+                    Text("About Fork and the Fork's Owner")
                 }
                 
                 VStack{
