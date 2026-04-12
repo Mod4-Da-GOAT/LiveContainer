@@ -47,7 +47,9 @@ public struct DownloadItem: Identifiable {
 // MARK: - DownloadQueueManager
 // ─────────────────────────────────────────────────────────────────────────────
 
-@MainActor
+// DownloadQueueManager is deliberately NOT @MainActor at the class level so that
+// SharedModel (which has a nonisolated init) can instantiate it freely.
+// All methods that mutate @Published state are individually marked @MainActor.
 public final class DownloadQueueManager: ObservableObject {
 
     @Published public private(set) var items: [DownloadItem] = []
@@ -81,7 +83,7 @@ public final class DownloadQueueManager: ObservableObject {
 
     // ── Public API ────────────────────────────────────────────────────────────
 
-    @discardableResult
+    @MainActor @discardableResult
     public func enqueue(item: DownloadItem) -> UUID {
         var m = item
         if m.appName.isEmpty && !_pendingLegacyName.isEmpty {
@@ -93,6 +95,7 @@ public final class DownloadQueueManager: ObservableObject {
         return m.id
     }
 
+    @MainActor
     public func cancel(id: UUID) {
         guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
         items[idx].isCancelled = true
@@ -103,14 +106,17 @@ public final class DownloadQueueManager: ObservableObject {
         _removeFinished(id: id)
     }
 
+    @MainActor
     public func cancelAll() {
         for item in items where item.isActive { cancel(id: item.id) }
     }
 
+    @MainActor
     public func cancel() {
         if let first = firstActive { cancel(id: first.id) }
     }
 
+    @MainActor
     public func download(url: URL, to destinationURL: URL) async throws {
         var name = _pendingLegacyName
         if name.isEmpty {
@@ -129,6 +135,7 @@ public final class DownloadQueueManager: ObservableObject {
 
     // ── Private ───────────────────────────────────────────────────────────────
 
+    @MainActor
     private func _start(id: UUID) async {
         guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
         items[idx].isActive = true
@@ -172,6 +179,7 @@ public final class DownloadQueueManager: ObservableObject {
         }
     }
 
+    @MainActor
     private func _removeFinished(id: UUID) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             self?.items.removeAll { $0.id == id }
