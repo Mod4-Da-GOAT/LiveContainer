@@ -54,30 +54,30 @@ public final class DownloadQueueManager: ObservableObject {
 
     @Published public private(set) var items: [DownloadItem] = []
 
-    public var isDownloading: Bool { items.contains { $0.isActive && !$0.isCancelled } }
-    public var isEmpty: Bool       { items.isEmpty }
+    @MainActor public var isDownloading: Bool { items.contains { $0.isActive && !$0.isCancelled } }
+    @MainActor public var isEmpty: Bool       { items.isEmpty }
 
     // Legacy shim — reflects first active item
-    public var downloadProgress: Float  { firstActive?.progress       ?? 0 }
-    public var downloadedSize: Int64    { firstActive?.downloadedBytes ?? 0 }
-    public var totalSize: Int64         { firstActive?.totalBytes      ?? 0 }
-    public var cancelled: Bool          { firstActive?.isCancelled     ?? false }
+    @MainActor public var downloadProgress: Float  { firstActive?.progress       ?? 0 }
+    @MainActor public var downloadedSize: Int64    { firstActive?.downloadedBytes ?? 0 }
+    @MainActor public var totalSize: Int64         { firstActive?.totalBytes      ?? 0 }
+    @MainActor public var cancelled: Bool          { firstActive?.isCancelled     ?? false }
 
-    public var appName: String {
+    @MainActor public var appName: String {
         get { firstActive?.appName ?? "" }
         set { _pendingLegacyName = newValue }
     }
-    public var isUpdate: Bool {
+    @MainActor public var isUpdate: Bool {
         get { firstActive?.isUpdate ?? false }
         set { /* set per-item at enqueue time */ }
     }
 
-    public var _pendingLegacyName: String = ""
+    @MainActor public var _pendingLegacyName: String = ""
 
     private var _tasks: [UUID: URLSessionDownloadTask] = [:]
     private var _continuations: [UUID: UnsafeContinuation<(), Never>] = [:]
 
-    private var firstActive: DownloadItem? {
+    @MainActor private var firstActive: DownloadItem? {
         items.first { $0.isActive && !$0.isCancelled }
     }
 
