@@ -1445,7 +1445,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Please use your favorite way to enable JIT for current LiveContainer."
+            "value": "Please use your favorite way to enable JIT for current AppNest."
           }
         },
         "fr": {
@@ -2308,7 +2308,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Convert Apps to Shared Apps to Use Them in LiveContainer2"
+            "value": "Convert Apps to Shared Apps to Use Them in AppNest2"
           }
         },
         "fr": {
@@ -3611,7 +3611,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Manage apps in the primary LiveContainer"
+            "value": "Manage apps in the primary AppNest"
           }
         },
         "fr": {
@@ -4067,7 +4067,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Scheme \"%@\" cannot be opened by any app installed in LiveContainer."
+            "value": "Scheme \"%@\" cannot be opened by any app installed in AppNest."
           }
         },
         "fr": {
@@ -4162,7 +4162,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "App was signed successfully, but LiveContainer was unable to sign the following files. You may be able to use the app, but do expect crash."
+            "value": "App was signed successfully, but AppNest was unable to sign the following files. You may be able to use the app, but do expect crash."
           }
         },
         "fr": {
@@ -6722,7 +6722,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hide LiveContainer from Dyld Api"
+            "value": "Hide AppNest from Dyld Api"
           }
         },
         "fr": {
@@ -7257,7 +7257,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "LiveContainer will try to acquire JIT permission before launching the app."
+            "value": "AppNest will try to acquire JIT permission before launching the app."
           }
         },
         "fr": {
@@ -8027,7 +8027,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Moving this app to Private Document Folder allows you to access its data and tweaks in the Files app, but it can not be run by other LiveContainers."
+            "value": "Moving this app to Private Document Folder allows you to access its data and tweaks in the Files app, but it can not be run by other AppNests."
           }
         },
         "fr": {
@@ -8217,7 +8217,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Moving this app to App Group allows other LiveContainers to run this app with all its data and tweak preserved. If you want to access its data and tweak again from the file app, move it back."
+            "value": "Moving this app to App Group allows other AppNests to run this app with all its data and tweak preserved. If you want to access its data and tweak again from the file app, move it back."
           }
         },
         "fr": {
@@ -8407,7 +8407,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Use LiveContainer's Bundle ID"
+            "value": "Use AppNest's Bundle ID"
           }
         },
         "fr": {
@@ -8490,7 +8490,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fixes these issues by using LiveContainer’s bundle identifier when overwriting main bundle."
+            "value": "Fixes these issues by using AppNest’s bundle identifier when overwriting main bundle."
           }
         },
         "fr": {
@@ -9505,70 +9505,70 @@
         }
       }
     },
-    "lc.common.calculate" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Calculate"
+    "lc.common.calculate": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calculate"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "计算"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "计算"
           }
         }
       }
     },
-    "lc.storage.calculating" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Calculating…"
+    "lc.storage.calculating": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calculating…"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "计算中…"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "计算中…"
           }
         }
       }
     },
-    "lc.common.collapsed" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Collapsed"
+    "lc.common.collapsed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collapsed"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已收起"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已收起"
           }
         }
       }
     },
-    "lc.common.expanded" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Expanded"
+    "lc.common.expanded": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expanded"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已展开"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已展开"
           }
         }
       }
@@ -12056,7 +12056,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "LiveContainer will use the default container when none is specified."
+            "value": "AppNest will use the default container when none is specified."
           }
         },
         "fr": {
@@ -14371,7 +14371,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Please restart LiveContainer to install apps."
+            "value": "Please restart AppNest to install apps."
           }
         },
         "fr": {
@@ -14466,7 +14466,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Setup JITLess mode in settings to use LiveContainer without JIT.\n\n**Check JITLess Diagnose page in settings if you have trouble enabling JITLess mode.**\n\nPress plus button to install apps.\n\nHolding app banner for app-specific settings, fixes and adding apps to home screen."
+            "value": "Setup JITLess mode in settings to use AppNest without JIT.\n\n**Check JITLess Diagnose page in settings if you have trouble enabling JITLess mode.**\n\nPress plus button to install apps.\n\nHolding app banner for app-specific settings, fixes and adding apps to home screen."
           }
         },
         "fr": {
@@ -14561,7 +14561,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "**Check [LiveContainer FAQ](https://github.com/khanhduytran0/LiveContainer/issues/265) for common issues.**\n                         \nIf you encounter a bug or compatibility issue please submit on [GitHub issues](https://github.com/khanhduytran0/LiveContainer/issues)."
+            "value": "**Check [AppNest FAQ](https://github.com/khanhduytran0/AppNest/issues/265) for common issues.**\n                         \nIf you encounter a bug or compatibility issue please submit on [GitHub issues](https://github.com/khanhduytran0/AppNest/issues)."
           }
         },
         "fr": {
@@ -14656,7 +14656,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "LiveContainer Help"
+            "value": "AppNest Help"
           }
         },
         "fr": {
@@ -17739,7 +17739,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "LiveContainer's bundle ID, \"%@\", does not match application-Identifier in entitlements, which expects the bundle ID to be \"%@\". Some functions may not be available."
+            "value": "AppNest's bundle ID, \"%@\", does not match application-Identifier in entitlements, which expects the bundle ID to be \"%@\". Some functions may not be available."
           }
         },
         "fr": {
@@ -18317,7 +18317,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "If some app's account can not be synced between LiveContainers, it may be due to the app account being still stored in current LiveContainer's private keychain. Deleting the keychain may solve this issue, but it may sign you out of some of your accounts. Continue?"
+            "value": "If some app's account can not be synced between AppNests, it may be due to the app account being still stored in current AppNest's private keychain. Deleting the keychain may solve this issue, but it may sign you out of some of your accounts. Continue?"
           }
         },
         "fr": {
@@ -18589,223 +18589,223 @@
         }
       }
     },
-    "lc.settings.storageManagement" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Storage Management"
+    "lc.settings.storageManagement": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Storage Management"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "存储管理"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "存储管理"
           }
         }
       }
     },
-    "lc.storage.appBundle" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "App Bundle"
+    "lc.storage.appBundle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Bundle"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "应用本体"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用本体"
           }
         }
       }
     },
-    "lc.storage.containers" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Containers"
+    "lc.storage.containers": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Containers"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "容器"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "容器"
           }
         }
       }
     },
-    "lc.storage.appGroupData" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "App Group Data"
+    "lc.storage.appGroupData": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Group Data"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "App Group 数据"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Group 数据"
           }
         }
       }
     },
-    "lc.storage.breakdown" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Breakdown"
+    "lc.storage.breakdown": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Breakdown"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "分类"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分类"
           }
         }
       }
     },
-    "lc.storage.other" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Other"
+    "lc.storage.other": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Other"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "其他"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "其他"
           }
         }
       }
     },
-    "lc.storage.temporaryFiles" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Temporary Files"
+    "lc.storage.temporaryFiles": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Temporary Files"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "临时文件"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "临时文件"
           }
         }
       }
     },
-    "lc.storage.totalStorage" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Total Storage"
+    "lc.storage.totalStorage": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Total Storage"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "总存储"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "总存储"
           }
         }
       }
     },
-    "lc.storage.installedApps" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Installed Apps"
+    "lc.storage.installedApps": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installed Apps"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已安装应用"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已安装应用"
           }
         }
       }
     },
-    "lc.storage.installedAppsToggleHint" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shows or hides storage details for this app"
+    "lc.storage.installedAppsToggleHint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shows or hides storage details for this app"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "显示或隐藏该应用的存储明细"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示或隐藏该应用的存储明细"
           }
         }
       }
     },
-    "lc.storage.noAppStorageData" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No app storage data"
+    "lc.storage.noAppStorageData": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No app storage data"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "没有应用存储数据"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有应用存储数据"
           }
         }
       }
     },
-    "lc.storage.looseFiles" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Loose Files"
+    "lc.storage.looseFiles": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loose Files"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "零散文件"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "零散文件"
           }
         }
       }
     },
-    "lc.storage.tweaks" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tweaks"
+    "lc.storage.tweaks": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tweaks"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tweaks"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tweaks"
           }
         }
       }
@@ -19059,7 +19059,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "LiveContainer will not sign new apps until this option is off. When this option is on the app installed will remain unsigned."
+            "value": "AppNest will not sign new apps until this option is off. When this option is on the app installed will remain unsigned."
           }
         },
         "fr": {
@@ -19534,7 +19534,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Frame shortcut icons with LiveContainer icon."
+            "value": "Frame shortcut icons with AppNest icon."
           }
         },
         "fr": {
@@ -19973,7 +19973,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "To use JITLess mode without AltStore/SideStore, you have to import the certificate used to sign LiveContainer. Continue?"
+            "value": "To use JITLess mode without AltStore/SideStore, you have to import the certificate used to sign AppNest. Continue?"
           }
         },
         "fr": {
@@ -20258,7 +20258,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Load Tweaks to LiveContainer Itself"
+            "value": "Load Tweaks to AppNest Itself"
           }
         },
         "fr": {
@@ -20311,7 +20311,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Place your tweaks into the global “Tweaks” folder and LiveContainer will pick them up."
+            "value": "Place your tweaks into the global “Tweaks” folder and AppNest will pick them up."
           }
         },
         "fr": {
@@ -20465,7 +20465,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Failed to validate certificate. Please check the password and verify the selected certificate is used to sign LiveContainer."
+            "value": "Failed to validate certificate. Please check the password and verify the selected certificate is used to sign AppNest."
           }
         },
         "fr": {
@@ -20940,7 +20940,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "JIT-less allows you to use LiveContainer without having to enable JIT."
+            "value": "JIT-less allows you to use AppNest without having to enable JIT."
           }
         },
         "fr": {
@@ -22164,7 +22164,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Multiple LiveContainers"
+            "value": "Multiple AppNests"
           }
         },
         "fr": {
@@ -22259,7 +22259,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "LiveContainer2 is signed with a different certificate from LiveContainer, so it will not work. Please install LiveContainer2 with the same account you used to install LiveContainer."
+            "value": "AppNest2 is signed with a different certificate from AppNest, so it will not work. Please install AppNest2 with the same account you used to install AppNest."
           }
         },
         "fr": {
@@ -22354,7 +22354,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "By installing multiple LiveContainers, and converting apps to Shared Apps, you can open one app between all LiveContainers with most of its data and settings."
+            "value": "By installing multiple AppNests, and converting apps to Shared Apps, you can open one app between all AppNests with most of its data and settings."
           }
         },
         "fr": {
@@ -22449,7 +22449,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Install Another LiveContainer"
+            "value": "Install Another AppNest"
           }
         },
         "fr": {
@@ -22799,7 +22799,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "LiveContainer will generate the ipa for another LiveContainer. Please share it to %@ to install it, Continue?"
+            "value": "AppNest will generate the ipa for another AppNest. Please share it to %@ to install it, Continue?"
           }
         },
         "fr": {
@@ -22894,7 +22894,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This is the second LiveContainer"
+            "value": "This is the second AppNest"
           }
         },
         "fr": {
@@ -22989,7 +22989,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reinstall Another LiveContainer"
+            "value": "Reinstall Another AppNest"
           }
         },
         "fr": {
@@ -23434,69 +23434,69 @@
         }
       }
     },
-    "lc.settings.cleanTmp" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Clean Temporary Files"
+    "lc.settings.cleanTmp": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clean Temporary Files"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "清理 tmp 内容"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清理 tmp 内容"
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "清理 tmp 內容"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清理 tmp 內容"
           }
         }
       }
     },
-    "lc.settings.cleanTmpComplete %lld" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Removed %lld temporary item."
+    "lc.settings.cleanTmpComplete %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Removed %lld temporary item."
                 }
               },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Removed %lld temporary items."
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Removed %lld temporary items."
                 }
               }
             }
           }
         },
-        "zh-Hans" : {
-          "variations" : {
-            "plural" : {
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "已清理 %lld 个 tmp 项目。"
+        "zh-Hans": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "已清理 %lld 个 tmp 项目。"
                 }
               }
             }
           }
         },
-        "zh-Hant" : {
-          "variations" : {
-            "plural" : {
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "已清理 %lld 個 tmp 項目。"
+        "zh-Hant": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "已清理 %lld 個 tmp 項目。"
                 }
               }
             }
@@ -23504,46 +23504,46 @@
         }
       }
     },
-    "lc.settings.cleanTmpConfirm %lld" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Do you want to delete %lld item from tmp?"
+    "lc.settings.cleanTmpConfirm %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Do you want to delete %lld item from tmp?"
                 }
               },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Do you want to delete %lld items from tmp?"
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Do you want to delete %lld items from tmp?"
                 }
               }
             }
           }
         },
-        "zh-Hans" : {
-          "variations" : {
-            "plural" : {
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "要删除 tmp 中的 %lld 个项目吗？"
+        "zh-Hans": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "要删除 tmp 中的 %lld 个项目吗？"
                 }
               }
             }
           }
         },
-        "zh-Hant" : {
-          "variations" : {
-            "plural" : {
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "要刪除 tmp 中的 %lld 個項目嗎？"
+        "zh-Hant": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "要刪除 tmp 中的 %lld 個項目嗎？"
                 }
               }
             }
@@ -23551,25 +23551,25 @@
         }
       }
     },
-    "lc.settings.noTmpToClean" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No temporary files to remove."
+    "lc.settings.noTmpToClean": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No temporary files to remove."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "没有可清理的 tmp 内容。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有可清理的 tmp 内容。"
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒有可清理的 tmp 內容。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有可清理的 tmp 內容。"
           }
         }
       }
@@ -23687,7 +23687,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "LiveContainer is not signed with a development certificate so LiveContainer won't work at all. Please sign LiveContainer with a development certificate."
+            "value": "AppNest is not signed with a development certificate so AppNest won't work at all. Please sign AppNest with a development certificate."
           }
         },
         "fr": {
@@ -23811,7 +23811,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Redirect URL Schemes to Host LiveContainer"
+            "value": "Redirect URL Schemes to Host AppNest"
           }
         },
         "zh-Hans": {
@@ -24172,7 +24172,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "If AltSign reports an error, please try ZSign and vice versa. Please restart LiveContainer after switching Signer."
+            "value": "If AltSign reports an error, please try ZSign and vice versa. Please restart AppNest after switching Signer."
           }
         },
         "fr": {
@@ -24320,7 +24320,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "By default, LiveContainer asks you how to open a URL. Enable this to automatically open URL in current app."
+            "value": "By default, AppNest asks you how to open a URL. Enable this to automatically open URL in current app."
           }
         },
         "fr": {
@@ -24510,7 +24510,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "By default, LiveContainer asks you before switching app. Enable this to switch app immediately. Any unsaved data will be lost."
+            "value": "By default, AppNest asks you before switching app. Enable this to switch app immediately. Any unsaved data will be lost."
           }
         },
         "fr": {
@@ -25032,7 +25032,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Please don't use LiveContainer for piracy."
+            "value": "Please don't use AppNest for piracy."
           }
         },
         "fr": {
@@ -25127,7 +25127,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "LiveContainer seems to crash during last app signing, and the app might be corrupted. Please consider reinstalling the app or switching to another signer."
+            "value": "AppNest seems to crash during last app signing, and the app might be corrupted. Please consider reinstalling the app or switching to another signer."
           }
         },
         "fr": {
@@ -30627,7 +30627,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Return to LiveContainer?"
+            "value": "Return to AppNest?"
           }
         }
       }
@@ -30683,6 +30683,116 @@
           "stringUnit": {
             "state": "translated",
             "value": "Top Right"
+          }
+        }
+      }
+    },
+    "lc.settings.hideCollapsedDock": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide Collapsed Dock"
+          }
+        }
+      }
+    },
+    "lc.tabView.updates": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates"
+          }
+        }
+      }
+    },
+    "lc.updates.checking": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking for updates..."
+          }
+        }
+      }
+    },
+    "lc.updates.upToDate": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All apps are up to date"
+          }
+        }
+      }
+    },
+    "lc.updates.pullToRefresh": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pull down to check again"
+          }
+        }
+      }
+    },
+    "lc.updates.update": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update"
+          }
+        }
+      }
+    },
+    "lc.updates.updateAll": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update All"
+          }
+        }
+      }
+    },
+    "lc.updates.notAnUpdate.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not an Update"
+          }
+        }
+      }
+    },
+    "lc.updates.notAnUpdate.message %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is not installed in AppNest. Go to the Apps tab to install it as a new app."
+          }
+        }
+      }
+    },
+    "lc.updates.notAnUpdate.goToApps": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go to Apps"
+          }
+        }
+      }
+    },
+    "lc.updates.notAnUpdate.reason": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The downloaded app is not installed in AppNest."
           }
         }
       }

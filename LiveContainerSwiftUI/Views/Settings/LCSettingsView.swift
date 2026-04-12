@@ -303,7 +303,7 @@ struct LCSettingsView: View {
                 Section {
                     HStack {
                         Image("GitHub")
-                        Button("LiveContainer/LiveContainer") {
+                        Button("AppNest/AppNest") {
                             openGitHub()
                         }
                     }

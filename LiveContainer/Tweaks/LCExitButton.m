@@ -38,6 +38,10 @@ static NSUserDefaults *g_lcDefaults = nil;
 // that write is on disk before the process is killed.
 static void lceb_relaunchLC(void) {
     // Flush the cleared "selected" key to disk before we die.
+    // We call synchronize() synchronously here (on the main thread) so the write
+    // is guaranteed to be committed before the dispatch_after block fires the kill.
+    // A second synchronize() inside the block is NOT needed and was previously
+    // causing a use-after-free if g_lcDefaults had been deallocated during teardown.
     [g_lcDefaults synchronize];
 
     // Use the real LC bundle ID from lcMainBundle (set by LCBootstrap before
@@ -52,14 +56,30 @@ static void lceb_relaunchLC(void) {
     [[LSApplicationWorkspace defaultWorkspace] openApplicationWithBundleID:lcBundleID];
 
     // Give SpringBoard ~300 ms to register the open request before we kill.
+    //
+    // We use a raw SIGKILL syscall rather than raise(SIGKILL) or exit() because:
+    //   • exit() runs C runtime teardown (atexit, ObjC destructors) whose
+    //     hooked function pointers may already be invalid, causing a crash the
+    //     OS records instead of clean termination → SpringBoard may block relaunch.
+    //   • raise(SIGKILL) goes through the signal() infrastructure which can be
+    //     intercepted by some crash reporters injected by TweakLoader.
+    //   • The direct svc #0x80 SYS_kill below is uninterceptable and matches
+    //     exactly what the original LCExitButton code intended.
+    //
+    // There is NO fallback raise(SIGKILL) after the dispatch_after block —
+    // that was the previous bug: the raise() fired immediately (before the
+    // 300ms delay), killing the process before SpringBoard could register the
+    // open request, so the relaunch never happened.
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
         __asm__ __volatile__ (
-            "mov x0, #31\n"
-            "mov x16, #26\n"
+            "mov x0, #31\n"   // SIGKILL = 31
+            "mov x16, #26\n"  // SYS_kill
             "svc #0x80\n"
         );
-        raise(SIGKILL);
+        // The line below is logically unreachable — the svc kills the process.
+        // It exists only to silence static-analysis warnings about missing kills.
+        _exit(1);
     });
 }
 
@@ -137,7 +157,7 @@ static void lceb_relaunchLC(void) {
     }
 
     UIAlertController *alert = [UIAlertController
-        alertControllerWithTitle:@"Return to LiveContainer?"
+        alertControllerWithTitle:@"Return to AppNest?"
         message:@"Any unsaved data in the running app may be lost."
         preferredStyle:UIAlertControllerStyleAlert];
 

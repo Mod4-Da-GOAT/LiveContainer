@@ -93,7 +93,7 @@ struct LCTabView: View {
                             LCTweaksView(tweakFolders: $tweakFolderNames)
                         }
                     }
-                    Tab("Updates", systemImage: "arrow.down.circle", value: LCTabIdentifier.updates) {
+                    Tab("lc.tabView.updates".loc, systemImage: "arrow.down.circle", value: LCTabIdentifier.updates) {
                         LCUpdatesView()
                     }
                     Tab("lc.tabView.settings".loc, systemImage: "gearshape.fill", value: LCTabIdentifier.settings) {
@@ -136,7 +136,7 @@ struct LCTabView: View {
                     }
                     LCUpdatesView()
                         .tabItem {
-                            Label("Updates", systemImage: "arrow.down.circle")
+                            Label("lc.tabView.updates".loc, systemImage: "arrow.down.circle")
                         }
                         .tag(LCTabIdentifier.updates)
                     
