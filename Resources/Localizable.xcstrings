@@ -23457,96 +23457,48 @@
         }
       }
     },
-    "lc.settings.cleanTmpComplete %lld": {
+    "lc.settings.cleanTmpComplete" : {
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "Removed %lld temporary item."
-                }
-              },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "Removed %lld temporary items."
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Temporary files removed."
           }
         },
         "zh-Hans": {
-          "variations": {
-            "plural": {
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "已清理 %lld 个 tmp 项目。"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已清理 tmp 内容。"
           }
         },
         "zh-Hant": {
-          "variations": {
-            "plural": {
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "已清理 %lld 個 tmp 項目。"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已清理 tmp 內容。"
           }
         }
       }
     },
-    "lc.settings.cleanTmpConfirm %lld": {
+    "lc.settings.cleanTmpConfirm" : {
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "Do you want to delete %lld item from tmp?"
-                }
-              },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "Do you want to delete %lld items from tmp?"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Do you want to delete temporary files?"
           }
         },
         "zh-Hans": {
-          "variations": {
-            "plural": {
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "要删除 tmp 中的 %lld 个项目吗？"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要删除 tmp 内容吗？"
           }
         },
         "zh-Hant": {
-          "variations": {
-            "plural": {
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "要刪除 tmp 中的 %lld 個項目嗎？"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要刪除 tmp 內容嗎？"
           }
         }
       }

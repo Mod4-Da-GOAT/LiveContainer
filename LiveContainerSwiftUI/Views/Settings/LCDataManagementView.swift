@@ -24,7 +24,6 @@ struct LCDataManagementView : View {
     
     @StateObject private var keyChainRemovalAlert = YesNoHelper()
     @StateObject private var tmpRemovalAlert = YesNoHelper()
-    @State private var tmpItemCount = 0
     
     @State var errorShow = false
     @State var errorInfo = ""
@@ -46,11 +45,13 @@ struct LCDataManagementView : View {
     var body: some View {
     
         Form {
-            Section {
-                NavigationLink {
-                    LCStorageManagementView()
-                } label: {
-                    Text("lc.settings.storageManagement".loc)
+            if sharedModel.multiLCStatus != 2 {
+                Section {
+                    NavigationLink {
+                        LCStorageManagementView()
+                    } label: {
+                        Text("lc.settings.storageManagement".loc)
+                    }
                 }
             }
 
@@ -173,23 +174,17 @@ struct LCDataManagementView : View {
             Text("lc.settings.cleanKeychainDesc".loc)
         }
         .alert("lc.settings.cleanTmp".loc, isPresented: $tmpRemovalAlert.show) {
-            if tmpItemCount > 0 {
-                Button(role: .destructive) {
-                    tmpRemovalAlert.close(result: true)
-                } label: {
-                    Text("lc.common.delete".loc)
-                }
+            Button(role: .destructive) {
+                tmpRemovalAlert.close(result: true)
+            } label: {
+                Text("lc.common.delete".loc)
             }
 
             Button("lc.common.cancel".loc, role: .cancel) {
                 tmpRemovalAlert.close(result: false)
             }
         } message: {
-            if tmpItemCount > 0 {
-                Text("lc.settings.cleanTmpConfirm %lld".localizeWithFormat(tmpItemCount))
-            } else {
-                Text("lc.settings.noTmpToClean".loc)
-            }
+            Text("lc.settings.cleanTmpConfirm".loc)
         }
         .onAppear {
             onAppearFunc()
@@ -331,14 +326,19 @@ struct LCDataManagementView : View {
         }
     }
     func clearTemporaryFiles() async {
+        guard let result = await tmpRemovalAlert.open(), result else {
+            return
+        }
+
         let fm = FileManager.default
         let tmpDirectory = fm.temporaryDirectory
 
         do {
             let tmpItems = try fm.contentsOfDirectory(at: tmpDirectory, includingPropertiesForKeys: nil)
-            tmpItemCount = tmpItems.count
 
-            guard let result = await tmpRemovalAlert.open(), result else {
+            if tmpItems.isEmpty {
+                successInfo = "lc.settings.noTmpToClean".loc
+                successShow = true
                 return
             }
 
@@ -346,7 +346,7 @@ struct LCDataManagementView : View {
                 try fm.removeItem(at: item)
             }
 
-            successInfo = "lc.settings.cleanTmpComplete %lld".localizeWithFormat(tmpItems.count)
+            successInfo = "lc.settings.cleanTmpComplete".loc
             successShow = true
         } catch {
             errorInfo = error.localizedDescription
@@ -703,6 +703,7 @@ struct LCDataManagementView : View {
             app.appInfo.clearIconCache()
         }
     }
+
 }
 
 extension String {

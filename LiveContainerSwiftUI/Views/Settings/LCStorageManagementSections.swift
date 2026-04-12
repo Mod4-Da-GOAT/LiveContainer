@@ -5,6 +5,8 @@ private struct LCInstalledAppIconView: View {
     @MainActor private static var iconCache: [String: UIImage?] = [:]
 
     let bundlePath: String?
+    let iconSize: CGFloat
+    let cornerRadius: CGFloat
 
     @State private var icon: UIImage?
 
@@ -14,8 +16,9 @@ private struct LCInstalledAppIconView: View {
                 Image(uiImage: icon)
                     .resizable()
                     .scaledToFill()
+                    .clipped()
             } else {
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(.tertiary.opacity(0.18))
                     .overlay {
                         Image(systemName: "app.fill")
@@ -24,14 +27,10 @@ private struct LCInstalledAppIconView: View {
                     }
             }
         }
-        // Keep the icon compact so the row still reads like Settings, not an app launcher.
-        .frame(width: 28, height: 28)
-        // Match the small rounded-rectangle feel of iOS settings-style app icons at this size.
-        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .frame(width: iconSize, height: iconSize)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .accessibilityHidden(true)
-        .onAppear {
-            icon = nil
-        }
         // Clear the visible icon as soon as the row is reused for a different app.
         .onChange(of: bundlePath) { _ in
             icon = nil
@@ -86,7 +85,6 @@ private enum LCStorageSummaryCategory {
     case appGroup
     case tweaks
     case temporaryFiles
-    case looseFiles
     case other
 }
 
@@ -108,8 +106,6 @@ private struct LCStorageSummaryDisplayItem: Identifiable {
             return "lc.storage.tweaks".loc
         case .temporaryFiles:
             return "lc.storage.temporaryFiles".loc
-        case .looseFiles:
-            return "lc.storage.looseFiles".loc
         case .other:
             return "lc.storage.other".loc
         }
@@ -127,8 +123,6 @@ private struct LCStorageSummaryDisplayItem: Identifiable {
             return .pink
         case .temporaryFiles:
             return .orange
-        case .looseFiles:
-            return .teal
         case .other:
             return .gray
         }
@@ -212,7 +206,6 @@ struct LCStorageSummarySection: View {
                     }
                     .padding(.top, 4)
                 }
-
             }
             .padding(.vertical, 2)
         }
@@ -270,15 +263,6 @@ struct LCStorageSummarySection: View {
             )
         }
 
-        if breakdown.looseFilesSize > 0 {
-            items.append(
-                LCStorageSummaryDisplayItem(
-                    category: .looseFiles,
-                    size: breakdown.looseFilesSize
-                )
-            )
-        }
-
         // Treat Other as the residual bucket now that more explicit categories are broken out above.
         if breakdown.otherSize > 0 {
             items.append(
@@ -301,9 +285,12 @@ struct LCStorageSummarySection: View {
                     .frame(width: 8, height: 8)
                     .opacity(color == nil ? 0 : 1)
                     .accessibilityHidden(true)
+
                 Text(title)
             }
+
             Spacer(minLength: 12)
+
             Text(formatStorageSize(size))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.trailing)
@@ -315,14 +302,9 @@ struct LCStorageSummarySection: View {
 struct LCInstalledAppsSection: View {
     let breakdown: LCStorageBreakdown?
 
-    @State private var expandedAppIDs: Set<String> = []
-
     var body: some View {
         Section("lc.storage.installedApps".loc) {
             content
-        }
-        .onChange(of: breakdown?.appItems.map(\.id) ?? []) { appIDs in
-            expandedAppIDs.formIntersection(appIDs)
         }
     }
 
@@ -340,108 +322,157 @@ struct LCInstalledAppsSection: View {
         }
     }
 
-    @ViewBuilder
     private func appRow(_ appItem: LCAppStorageItem) -> some View {
-        let isExpanded = expandedAppIDs.contains(appItem.id)
-
-        Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                toggleExpanded(appID: appItem.id)
-            }
+        NavigationLink {
+            LCAppStorageDetailView(appItem: appItem)
         } label: {
             HStack(spacing: 12) {
-                // Keep the icon in the top-level row only so expanded storage details stay text-first.
-                LCInstalledAppIconView(bundlePath: appItem.bundlePath)
+                LCInstalledAppIconView(
+                    bundlePath: appItem.bundlePath,
+                    iconSize: 28,
+                    cornerRadius: 7
+                )
 
-                Text(appItem.name)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(appItem.name)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
 
-                Spacer()
+                    if let lastUsedAt = appItem.lastUsedAt {
+                        Text(formatStorageDate(lastUsedAt))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                }
+                .layoutPriority(1)
+
+                Spacer(minLength: 12)
 
                 Text(formatStorageSize(appItem.totalSize))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                    .accessibilityHidden(true)
             }
-            .contentShape(Rectangle())
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .buttonStyle(.plain)
-        // Expose the expanded state on the row because the chevron is decorative only.
-        .accessibilityValue(isExpanded ? Text("lc.common.expanded".loc) : Text("lc.common.collapsed".loc))
-        .accessibilityHint(Text("lc.storage.installedAppsToggleHint".loc))
+    }
+}
 
-        if isExpanded {
-            if let bundleSize = appItem.bundleSize {
-                appSummaryRow(
-                    title: "lc.storage.appBundle".loc,
-                    size: bundleSize
-                )
-            }
+private struct LCAppStorageSummaryHeaderView: View {
+    let appItem: LCAppStorageItem
 
-            appSummaryRow(
-                title: "lc.storage.containers".loc,
-                size: appItem.containersSize
+    @ScaledMetric(relativeTo: .title) private var iconSize: CGFloat = 56
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            LCInstalledAppIconView(
+                bundlePath: appItem.bundlePath,
+                iconSize: iconSize,
+                cornerRadius: iconSize * 0.22
             )
 
-            ForEach(appItem.containerDetails, id: \.id) { container in
-                appContainerRow(container)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(appItem.name)
+                    .font(.headline)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(appItem.version)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                if let bundleIdentifier = appItem.bundleIdentifier {
+                    Text(bundleIdentifier)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
             }
-
-            if appItem.tweaksSize > 0 {
-                appSummaryRow(
-                    title: "lc.storage.tweaks".loc,
-                    size: appItem.tweaksSize
-                )
-            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-    }
-
-    private func appSummaryRow(title: String, size: Int64) -> some View {
-        HStack {
-            Text(title)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .padding(.leading, 20)
-
-            Spacer()
-
-            Text(formatStorageSize(size))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-        }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 2)
     }
+}
 
-    private func appContainerRow(_ container: LCAppStorageContainerItem) -> some View {
-        HStack {
-            Text(container.name)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .padding(.leading, 36)
+private struct LCAppStorageDetailView: View {
+    let appItem: LCAppStorageItem
 
-            Spacer()
+    var body: some View {
+        Form {
+            Section {
+                LCAppStorageSummaryHeaderView(appItem: appItem)
+                    .listRowInsets(
+                        EdgeInsets(
+                            top: 10,
+                            leading: 16,
+                            bottom: 10,
+                            trailing: 16
+                        )
+                    )
 
-            Text(formatStorageSize(container.size))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+                if let bundleSize = appItem.bundleSize {
+                    appSummaryRow(title: "lc.storage.appBundle".loc, size: bundleSize)
+                }
+
+                appSummaryRow(title: "lc.storage.containers".loc, size: appItem.containersSize)
+
+                if appItem.tweaksSize > 0 {
+                    appSummaryRow(title: "lc.storage.tweaks".loc, size: appItem.tweaksSize)
+                }
+            }
+
+            if !appItem.containerDetails.isEmpty {
+                Section("lc.storage.containers".loc) {
+                    ForEach(appItem.containerDetails, id: \.id) { container in
+                        appContainerRow(container)
+                    }
+                }
+            }
         }
-        .padding(.vertical, 2)
+        .navigationTitle(appItem.name)
+        .navigationBarTitleDisplayMode(.inline)
     }
+}
 
-    private func toggleExpanded(appID: String) {
-        if expandedAppIDs.contains(appID) {
-            expandedAppIDs.remove(appID)
-        } else {
-            expandedAppIDs.insert(appID)
-        }
+private func appSummaryRow(title: String, size: Int64) -> some View {
+    HStack(spacing: 12) {
+        Text(title)
+            .lineLimit(1)
+            .truncationMode(.tail)
+
+        Spacer(minLength: 12)
+
+        Text(formatStorageSize(size))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
     }
+}
+
+private func appContainerRow(_ container: LCAppStorageContainerItem) -> some View {
+    HStack(spacing: 12) {
+        Text(container.name)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .truncationMode(.tail)
+
+        Spacer(minLength: 12)
+
+        Text(formatStorageSize(container.size))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+    }
+    .padding(.vertical, 2)
+}
+
+private func formatStorageDate(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .short
+    formatter.timeStyle = .medium
+    return formatter.string(from: date)
 }
 
 private func formatStorageSize(_ size: Int64) -> String {

@@ -9,6 +9,9 @@ struct LCAppStorageItem: Identifiable {
     let containersSize: Int64
     let tweaksSize: Int64
     let totalSize: Int64
+    let version: String
+    let bundleIdentifier: String?
+    let lastUsedAt: Date?
     let containerDetails: [LCAppStorageContainerItem]
 }
 
@@ -25,7 +28,6 @@ struct LCStorageBreakdown {
     let temporaryFilesSize: Int64
     let appGroupSize: Int64
     let tweaksSize: Int64
-    let looseFilesSize: Int64
     let otherSize: Int64
     let bundleAttributionEnabled: Bool
     let appItems: [LCAppStorageItem]
@@ -60,7 +62,6 @@ final class LCStorageManagementModel: ObservableObject {
         case temporaryFiles
         case appGroup
         case tweaks
-        case looseFiles
     }
 
     private struct ManagedPaths {
@@ -75,6 +76,9 @@ final class LCStorageManagementModel: ObservableObject {
         let bundlePath: String?
         let containers: [ContainerStorageInput]
         let tweakPath: URL?
+        let version: String
+        let bundleIdentifier: String?
+        let lastUsedAt: Date?
     }
 
     private struct ContainerStorageInput {
@@ -126,15 +130,6 @@ final class LCStorageManagementModel: ObservableObject {
                 (.tweaks, try await calculateCombinedSize(of: managedPaths.tweakPaths))
             }
 
-            group.addTask(priority: .utility) {
-                // Loose files are direct root-level leftovers that are not part of explicit managed roots.
-                let excludedRoots = bundleRoots + containerRoots + appGroupRoots + tweakRoots
-                return (
-                    .looseFiles,
-                    try await calculateLooseFilesSize(in: knownRoots, excluding: excludedRoots)
-                )
-            }
-
             for try await (category, size) in group {
                 sizesByCategory[category] = size
             }
@@ -145,19 +140,20 @@ final class LCStorageManagementModel: ObservableObject {
         let temporaryFilesSize = sizesByCategory[.temporaryFiles] ?? 0
         let appGroupSize = sizesByCategory[.appGroup] ?? 0
         let tweaksSize = sizesByCategory[.tweaks] ?? 0
-        let looseFilesSize = sizesByCategory[.looseFiles] ?? 0
         let knownRootsSize = try await calculateCombinedSize(of: knownRoots)
-        // Other is the residual after explicit categories are removed from the known storage roots.
-        let otherSize = max(0, knownRootsSize - appBundleSize - containersSize - appGroupSize - tweaksSize - looseFilesSize)
+        let excludedRoots = bundleRoots + containerRoots + appGroupRoots + tweakRoots
+        let looseFilesSize = try await calculateLooseFilesSize(in: knownRoots, excluding: excludedRoots)
+        // Other is the residual after explicit categories are removed from the known storage roots, plus loose root-level files.
+        let residualOtherSize = max(0, knownRootsSize - appBundleSize - containersSize - appGroupSize - tweaksSize - looseFilesSize)
+        let otherSize = residualOtherSize + looseFilesSize
 
         return LCStorageBreakdown(
-            totalSize: appBundleSize + containersSize + temporaryFilesSize + appGroupSize + tweaksSize + looseFilesSize + otherSize,
+            totalSize: appBundleSize + containersSize + temporaryFilesSize + appGroupSize + tweaksSize + otherSize,
             appBundleSize: appBundleSize,
             containersSize: containersSize,
             temporaryFilesSize: temporaryFilesSize,
             appGroupSize: appGroupSize,
             tweaksSize: tweaksSize,
-            looseFilesSize: looseFilesSize,
             otherSize: otherSize,
             bundleAttributionEnabled: bundleAttributionEnabled,
             appItems: appItems
@@ -200,7 +196,10 @@ final class LCStorageManagementModel: ObservableObject {
                     name: app.appInfo.displayName(),
                     bundlePath: app.appInfo.bundlePath(),
                     containers: containers,
-                    tweakPath: tweak
+                    tweakPath: tweak,
+                    version: app.appInfo.version(),
+                    bundleIdentifier: app.appInfo.bundleIdentifier(),
+                    lastUsedAt: app.appInfo.lastLaunched
                 )
             )
         }
@@ -254,6 +253,9 @@ final class LCStorageManagementModel: ObservableObject {
             containersSize: containersSize,
             tweaksSize: tweaksSize,
             totalSize: (bundleSize ?? 0) + containersSize + tweaksSize,
+            version: input.version,
+            bundleIdentifier: input.bundleIdentifier,
+            lastUsedAt: input.lastUsedAt,
             containerDetails: containerDetails
         )
     }
