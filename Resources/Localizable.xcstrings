@@ -16889,91 +16889,91 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "عني"
+            "value": "حول المستودع الأصلي والمالكين"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Über Mich"
+            "value": "Over de oorspronkelijke repository en de eigenaren"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "About Me"
+            "value": "About original Repository and owners"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "À propos de moi"
+            "value": "À propos du dépôt original et des propriétaires"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chi sono"
+            "value": "Informazioni sul repository originale e sui proprietari"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "開発者"
+            "value": "オリジナルリポジトリと所有者について"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "개발자"
+            "value": "원본 저장소 및 소유자에 대한 정보"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "O mnie"
+            "value": "O oryginalnym repozytorium i właścicielach"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sobre Mim"
+            "value": "Sobre o repositório original e seus proprietários"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Обо мне"
+            "value": "Информация об оригинальном репозитории и его владельцах."
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Om mig"
+            "value": "O originalnem repozitoriju in lastnikih"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hakkımda"
+            "value": "Orijinal arşiv ve sahipleri hakkında"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Về chúng tôi"
+            "value": "Thông tin về kho lưu trữ gốc và chủ sở hữu"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "关于"
+            "value": "关于原始存储库和所有者"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "關於"
+            "value": "關於原始儲存庫和擁有者"
           }
         }
       }
