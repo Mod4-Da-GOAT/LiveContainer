@@ -52,7 +52,10 @@ public struct DownloadItem: Identifiable {
 // of the original single-item DownloadHelper.
 // ─────────────────────────────────────────────────────────────────────────────
 
-public final class DownloadQueueManager: ObservableObject {
+// @unchecked Sendable: all @Published mutations are dispatched to DispatchQueue.main,
+// so cross-actor captures are safe. This suppresses Swift 6 Sendable errors on the
+// DispatchQueue.main.async { [weak self] } captures inside the class.
+public final class DownloadQueueManager: ObservableObject, @unchecked Sendable {
 
     @Published public private(set) var items: [DownloadItem] = []
 
