@@ -1119,16 +1119,16 @@ private struct SourceIconView: View {
         guard let url else { return }
 
         // 1. In-memory cache hit — synchronous, zero cost
-        if let cached = await IconImageCache.shared.image(for: url) {
+        if let cached = IconImageCache.shared.image(for: url) {
             uiImage = cached
             return
         }
 
-        // 2. Network (or URLCache disk hit) — off main thread
+        // 2. Network fetch — off main thread via async URLSession
         guard let (data, _) = try? await URLSession.shared.data(from: url),
               let img = UIImage(data: data) else { return }
 
-        await IconImageCache.shared.store(img, for: url)
+        IconImageCache.shared.store(img, for: url)
         uiImage = img
     }
 }

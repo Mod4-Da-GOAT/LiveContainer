@@ -211,7 +211,7 @@ struct LCUpdatesView: View {
             }) {
                 try? await Task.sleep(nanoseconds: 200_000_000)
             }
-            await MainActor.run {
+            await MainActor.run { [self] in
                 queuedBundleIds.remove(bundleId)
             }
         }
