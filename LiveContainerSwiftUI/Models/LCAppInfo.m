@@ -9,6 +9,9 @@
 
 uint32_t dyld_get_sdk_version(const struct mach_header* mh);
 
+@interface LCAppInfo()
+@property UIImage* cachedIcon;
+@property UIImage* cachedIconDark;
 @property (nonatomic, readonly) NSMutableDictionary *lcMutableAddonSettingsByContainer;
 @property (nonatomic, readonly) NSDictionary *lcCurrentContainerAddonSettings;
 @property (nonatomic, readonly) NSString *lcCurrentAddonContainerId;
