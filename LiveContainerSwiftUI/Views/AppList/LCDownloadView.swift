@@ -3,7 +3,7 @@
 //  LiveContainerSwiftUI
 //
 //  Multi-download queue + persistent tray that also hosts the "install IPA" action,
-//  replacing the old toolbar + button entirely.
+//  replacing the old toolbar button entirely.
 //
 
 import SwiftUI
@@ -45,78 +45,82 @@ public struct DownloadItem: Identifiable {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MARK: - DownloadQueueManager
+//
+// Deliberately has NO @MainActor on the class or its stored properties so that
+// SharedModel (nonisolated init) can instantiate it freely. All @Published
+// mutations are dispatched to the main queue manually, matching the pattern
+// of the original single-item DownloadHelper.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// DownloadQueueManager is deliberately NOT @MainActor at the class level so that
-// SharedModel (which has a nonisolated init) can instantiate it freely.
-// All methods that mutate @Published state are individually marked @MainActor.
 public final class DownloadQueueManager: ObservableObject {
 
     @Published public private(set) var items: [DownloadItem] = []
 
-    @MainActor public var isDownloading: Bool { items.contains { $0.isActive && !$0.isCancelled } }
-    @MainActor public var isEmpty: Bool       { items.isEmpty }
+    // Computed properties — safe to call from any context because they only
+    // read @Published state which is always mutated on the main queue.
+    public var isDownloading: Bool { items.contains { $0.isActive && !$0.isCancelled } }
+    public var isEmpty: Bool       { items.isEmpty }
 
-    // Legacy shim — reflects first active item
-    @MainActor public var downloadProgress: Float  { firstActive?.progress       ?? 0 }
-    @MainActor public var downloadedSize: Int64    { firstActive?.downloadedBytes ?? 0 }
-    @MainActor public var totalSize: Int64         { firstActive?.totalBytes      ?? 0 }
-    @MainActor public var cancelled: Bool          { firstActive?.isCancelled     ?? false }
+    // Legacy shim properties for existing call-sites
+    public var downloadProgress: Float  { _firstActive?.progress       ?? 0 }
+    public var downloadedSize: Int64    { _firstActive?.downloadedBytes ?? 0 }
+    public var totalSize: Int64         { _firstActive?.totalBytes      ?? 0 }
+    public var cancelled: Bool          { _firstActive?.isCancelled     ?? false }
 
-    @MainActor public var appName: String {
-        get { firstActive?.appName ?? "" }
+    public var appName: String {
+        get { _firstActive?.appName ?? "" }
         set { _pendingLegacyName = newValue }
     }
-    @MainActor public var isUpdate: Bool {
-        get { firstActive?.isUpdate ?? false }
+    public var isUpdate: Bool {
+        get { _firstActive?.isUpdate ?? false }
         set { /* set per-item at enqueue time */ }
     }
 
-    @MainActor public var _pendingLegacyName: String = ""
+    // Written/read exclusively on the main thread by SwiftUI views —
+    // no actor annotation needed; callers are always @MainActor views.
+    public var _pendingLegacyName: String = ""
 
     private var _tasks: [UUID: URLSessionDownloadTask] = [:]
     private var _continuations: [UUID: UnsafeContinuation<(), Never>] = [:]
 
-    @MainActor private var firstActive: DownloadItem? {
+    private var _firstActive: DownloadItem? {
         items.first { $0.isActive && !$0.isCancelled }
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
 
-    @MainActor @discardableResult
+    @discardableResult
     public func enqueue(item: DownloadItem) -> UUID {
         var m = item
         if m.appName.isEmpty && !_pendingLegacyName.isEmpty {
             m.appName = _pendingLegacyName
         }
         _pendingLegacyName = ""
-        items.append(m)
+        DispatchQueue.main.async { self.items.append(m) }
         Task { await _start(id: m.id) }
         return m.id
     }
 
-    @MainActor
     public func cancel(id: UUID) {
-        guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
-        items[idx].isCancelled = true
-        items[idx].isActive    = false
         _tasks[id]?.cancel()
         _tasks.removeValue(forKey: id)
         _continuations.removeValue(forKey: id)?.resume()
-        _removeFinished(id: id)
+        DispatchQueue.main.async {
+            guard let idx = self.items.firstIndex(where: { $0.id == id }) else { return }
+            self.items[idx].isCancelled = true
+            self.items[idx].isActive    = false
+            self._removeFinished(id: id)
+        }
     }
 
-    @MainActor
     public func cancelAll() {
         for item in items where item.isActive { cancel(id: item.id) }
     }
 
-    @MainActor
     public func cancel() {
-        if let first = firstActive { cancel(id: first.id) }
+        if let first = _firstActive { cancel(id: first.id) }
     }
 
-    @MainActor
     public func download(url: URL, to destinationURL: URL) async throws {
         var name = _pendingLegacyName
         if name.isEmpty {
@@ -135,30 +139,37 @@ public final class DownloadQueueManager: ObservableObject {
 
     // ── Private ───────────────────────────────────────────────────────────────
 
-    @MainActor
     private func _start(id: UUID) async {
-        guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
-        items[idx].isActive = true
-        let item = items[idx]
+        // Mark active on main queue first
+        await withCheckedContinuation { (ready: CheckedContinuation<Void, Never>) in
+            DispatchQueue.main.async {
+                if let idx = self.items.firstIndex(where: { $0.id == id }) {
+                    self.items[idx].isActive = true
+                }
+                ready.resume()
+            }
+        }
+
+        guard let itemIdx = items.firstIndex(where: { $0.id == id }) else { return }
+        let item = items[itemIdx]
 
         await withUnsafeContinuation { (c: UnsafeContinuation<(), Never>) in
             _continuations[id] = c
 
             let delegate = _DownloadDelegate(
-                onProgress: { [weak self] prog, dl, total in
-                    Task { @MainActor [weak self] in
-                        guard let self, let i = self.items.firstIndex(where: { $0.id == id })
-                        else { return }
-                        self.items[i].progress       = prog
+                onProgress: { prog, dl, total in
+                    DispatchQueue.main.async {
+                        guard let i = self.items.firstIndex(where: { $0.id == id }) else { return }
+                        self.items[i].progress        = prog
                         self.items[i].downloadedBytes = dl
                         self.items[i].totalBytes      = total
                     }
                 },
-                onComplete: { [weak self] tempURL, _ in
-                    Task { @MainActor [weak self] in
-                        guard let self else { c.resume(); return }
+                onComplete: { tempURL, _ in
+                    DispatchQueue.main.async {
                         guard let i2 = self.items.firstIndex(where: { $0.id == id }) else {
-                            c.resume(); return
+                            self._continuations.removeValue(forKey: id)?.resume()
+                            return
                         }
                         self.items[i2].isActive = false
                         if let tempURL {
@@ -179,7 +190,6 @@ public final class DownloadQueueManager: ObservableObject {
         }
     }
 
-    @MainActor
     private func _removeFinished(id: UUID) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             self?.items.removeAll { $0.id == id }
@@ -230,13 +240,6 @@ private final class _DownloadDelegate: NSObject, URLSessionDownloadDelegate {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MARK: - DownloadTrayView
-//
-// Always visible floating overlay (bottom of screen).
-// • Collapsed → compact pill: shows download ring+name when active, or "Install" when idle.
-// • Expanded  → card with active download rows + "From File" / "From URL" buttons.
-//
-// The install buttons replace the old toolbar + button; they call back into
-// LCAppListView via the injected closures.
 // ─────────────────────────────────────────────────────────────────────────────
 
 public struct DownloadTrayView: View {
@@ -326,7 +329,6 @@ public struct DownloadTrayView: View {
 
     private var expandedCard: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Text(manager.isDownloading
                      ? (manager.items.count == 1 ? "Downloading" : "\(manager.items.count) Downloads")
@@ -344,7 +346,6 @@ public struct DownloadTrayView: View {
             .padding(.top, 12)
             .padding(.bottom, 8)
 
-            // Active download rows
             if !manager.items.isEmpty {
                 Divider().padding(.horizontal, 8)
                 ForEach(manager.items) { item in
@@ -355,7 +356,6 @@ public struct DownloadTrayView: View {
                 }
             }
 
-            // Install action buttons — always shown
             Divider().padding(.horizontal, 8).padding(.top, 4)
 
             HStack(spacing: 0) {
