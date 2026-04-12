@@ -129,14 +129,21 @@ class LCAppModel: ObservableObject, Hashable, @unchecked Sendable {
         }
     }
 
-    public var shouldLaunchInMultitaskMode : Bool {
+    public var bundleIdentifier: String {
         get {
-            if #available(iOS 16.0, *) {
-                return uiIsMultitaskModeSpecificed == .yes ||
-                (uiIsMultitaskModeSpecificed == .default && UserDefaults.standard.bool(forKey: "LCLaunchInMultitaskMode"))
-            } else {
-                return false
-            }
+            return appInfo.bundleIdentifier() ?? "?"
+        }
+    }
+
+    public var version: String {
+        get {
+            return appInfo.version() ?? "?"
+        }
+    }
+
+    public var displayName: String {
+        get {
+            return appInfo.displayName() ?? "?"
         }
     }
 

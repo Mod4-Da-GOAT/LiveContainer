@@ -45,16 +45,6 @@ struct LCDataManagementView : View {
     var body: some View {
     
         Form {
-            if sharedModel.multiLCStatus != 2 {
-                Section {
-                    NavigationLink {
-                        LCStorageManagementView()
-                    } label: {
-                        Text("lc.settings.storageManagement".loc)
-                    }
-                }
-            }
-
             Section {
                 if sharedModel.multiLCStatus != 2 {
                     Button {

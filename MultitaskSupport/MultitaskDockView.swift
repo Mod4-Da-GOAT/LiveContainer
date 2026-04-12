@@ -572,12 +572,6 @@ class AppInfoProvider {
     
     // Check if gesture is for cross-screen movement (left to right or vice versa)
     func isPositionChangeGesture(for originalFrame: CGRect, translation: CGSize) -> Bool {
-        let horizontalDistance = abs(translation.width)
-        let verticalDistance = abs(translation.height)
-        
-        guard !self.isDockHidden, horizontalDistance > verticalDistance else {
-            return false
-        }
         
         let screenWidth = keyWindow!.bounds.width
         let isOnRightSide = originalFrame.origin.x > screenWidth / 2
@@ -1224,9 +1218,7 @@ struct AppIconView: View {
             if isLoading && appIcon == nil {
                 LoadingIconView()
             } else if let icon = appIcon {
-                Image(uiImage: icon)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
+                IconImageView(icon: icon)
             } else {
                 RoundedRectangle(cornerRadius: 12)
                 .fill(Color.gray.opacity(0.3))

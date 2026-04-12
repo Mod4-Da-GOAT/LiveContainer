@@ -4,6 +4,7 @@ import SwiftUI
 struct LCStorageManagementView: View {
     @EnvironmentObject private var sharedModel: SharedModel
     @StateObject private var model = LCStorageManagementModel()
+    @State private var refreshed: Bool = false
 
     var body: some View {
         Form {
@@ -17,7 +18,11 @@ struct LCStorageManagementView: View {
         .navigationTitle("lc.settings.storageManagement".loc)
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            await refresh()
+            if !refreshed {
+                await refresh()
+                refreshed = true
+            }
+
         }
     }
 

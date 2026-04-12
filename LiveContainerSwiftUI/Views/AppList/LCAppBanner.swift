@@ -63,16 +63,15 @@ struct LCAppBanner : View {
 
         HStack {
             HStack {
-                Image(uiImage: icon)
-                    .resizable().resizable().frame(width: 60, height: 60)
-                    .clipShape(RoundedRectangle(cornerSize: CGSize(width:16, height: 16)))
+                IconImageView(icon: icon)
+                    .frame(width: 60, height: 60)
 
                 VStack (alignment: .leading, content: {
                     let color = (dynamicColors ? mainColor : Color("FontColor"))
                     // note: keep this so the color updates when toggling dark mode
                     let textColor = colorScheme == .dark ? color.readableTextColor() : color.readableTextColor()
                     HStack {
-                        Text(appInfo.displayName()).font(.system(size: 16)).bold()
+                        Text(model.displayName).font(.system(size: 16)).bold()
                         if model.uiIsShared {
                             Image(systemName: "arrowshape.turn.up.left.fill")
                                 .font(.system(size: 8))

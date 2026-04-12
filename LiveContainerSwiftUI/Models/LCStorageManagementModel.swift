@@ -2,23 +2,22 @@ import Foundation
 import Combine
 
 struct LCAppStorageItem: Identifiable {
-    let id: String
-    let name: String
-    let bundlePath: String?
+    let id: UUID
+
+    let appModel: LCAppModel
     let bundleSize: Int64?
     let containersSize: Int64
-    let tweaksSize: Int64
+
     let totalSize: Int64
-    let version: String
-    let bundleIdentifier: String?
-    let lastUsedAt: Date?
+
     let containerDetails: [LCAppStorageContainerItem]
 }
 
 struct LCAppStorageContainerItem: Identifiable {
-    let id: String
+    let id: UUID
     let name: String
     let size: Int64
+    let isExternalContainer: Bool
 }
 
 struct LCStorageBreakdown {
@@ -29,7 +28,7 @@ struct LCStorageBreakdown {
     let appGroupSize: Int64
     let tweaksSize: Int64
     let otherSize: Int64
-    let bundleAttributionEnabled: Bool
+
     let appItems: [LCAppStorageItem]
 }
 
@@ -64,58 +63,49 @@ final class LCStorageManagementModel: ObservableObject {
         case tweaks
     }
 
-    private struct ManagedPaths {
-        let containerPaths: [URL]
-        let tweakPaths: [URL]
-        let appInputs: [AppStorageInput]
-    }
-
-    private struct AppStorageInput {
-        let id: String
-        let name: String
-        let bundlePath: String?
-        let containers: [ContainerStorageInput]
-        let tweakPath: URL?
-        let version: String
-        let bundleIdentifier: String?
-        let lastUsedAt: Date?
-    }
-
-    private struct ContainerStorageInput {
-        let id: String
-        let name: String
-        let path: URL
-    }
-
-
     nonisolated private static func calculateBreakdown(apps: [LCAppModel], hiddenApps: [LCAppModel]) async throws -> LCStorageBreakdown {
-        let managedPaths = collectManagedPaths(apps: apps, hiddenApps: hiddenApps)
+        var allApps: [LCAppModel]
+        if DataManager.shared.model.isHiddenAppUnlocked {
+            allApps = apps + hiddenApps
+        } else {
+            allApps = apps
+        }
+        
+        if UserDefaults.sideStoreExist() {
+            allApps.append(LCAppModel(appInfo: BuiltInSideStoreAppInfo()))
+        }
+
         // Show per-app bundle usage only when every installed app has a reliable bundle path.
-        let bundleAttributionEnabled = !managedPaths.appInputs.isEmpty && managedPaths.appInputs.allSatisfy { $0.bundlePath != nil }
         let appItems = try await calculateAppItems(
-            from: managedPaths.appInputs,
-            bundleAttributionEnabled: bundleAttributionEnabled
+            from: allApps
         )
 
         var sizesByCategory: [StorageCategory: Int64] = [:]
-        let attributedBundlePaths = bundleAttributionEnabled
-            // Keep the page-level app bundle total aligned with the per-app breakdown mode.
-            ? managedPaths.appInputs.compactMap { $0.bundlePath.map(URL.init(fileURLWithPath:)) }
-            : []
+        
         let knownRoots = uniquePaths([LCPath.docPath, LCPath.lcGroupDocPath])
         let bundleRoots = uniquePaths([LCPath.bundlePath, LCPath.lcGroupBundlePath])
         let containerRoots = uniquePaths([LCPath.dataPath, LCPath.lcGroupDataPath])
         let appGroupRoots = uniquePaths([LCPath.appGroupPath, LCPath.lcGroupAppGroupPath])
         let tweakRoots = uniquePaths([LCPath.tweakPath, LCPath.lcGroupTweakPath])
+        
+        
+        sizesByCategory[.appBundle] = 0
+        sizesByCategory[.containers] = 0
+        for appItem in appItems {
+            if appItem.appModel.appInfo is BuiltInSideStoreAppInfo {
+                continue
+            }
+            
+            sizesByCategory[.appBundle]! += appItem.bundleSize ?? 0
+            for containerDetail in appItem.containerDetails {
+                if containerDetail.isExternalContainer {
+                    continue
+                }
+                sizesByCategory[.containers]! += containerDetail.size
+            }
+        }
 
         try await withThrowingTaskGroup(of: (StorageCategory, Int64).self) { group in
-            group.addTask(priority: .utility) {
-                (.appBundle, try await calculateCombinedSize(of: attributedBundlePaths))
-            }
-
-            group.addTask(priority: .utility) {
-                (.containers, try await calculateCombinedSize(of: managedPaths.containerPaths))
-            }
 
             group.addTask(priority: .utility) {
                 (.temporaryFiles, try await calculateSize(at: FileManager.default.temporaryDirectory))
@@ -127,7 +117,7 @@ final class LCStorageManagementModel: ObservableObject {
 
             group.addTask(priority: .utility) {
                 // Surface tweaks as a top-level bucket so managed tweak storage does not disappear into Other.
-                (.tweaks, try await calculateCombinedSize(of: managedPaths.tweakPaths))
+                (.tweaks, try await calculateCombinedSize(of: tweakRoots))
             }
 
             for try await (category, size) in group {
@@ -155,114 +145,68 @@ final class LCStorageManagementModel: ObservableObject {
             appGroupSize: appGroupSize,
             tweaksSize: tweaksSize,
             otherSize: otherSize,
-            bundleAttributionEnabled: bundleAttributionEnabled,
             appItems: appItems
         )
     }
 
-    nonisolated private static func collectManagedPaths(apps: [LCAppModel], hiddenApps: [LCAppModel]) -> ManagedPaths {
-        let allApps = apps + hiddenApps
-        var containerPaths = Set<URL>()
-        var tweakPaths = Set<URL>()
-        var appInputs: [AppStorageInput] = []
-
-        for app in allApps {
-            let containers = app.appInfo.containers.map { container in
-                let basePath = container.isShared ? LCPath.lcGroupDataPath : LCPath.dataPath
-                let path = basePath.appendingPathComponent(container.folderName)
-                let trimmedName = container.name.trimmingCharacters(in: .whitespacesAndNewlines)
-                let name = trimmedName.isEmpty ? container.folderName : trimmedName
-                containerPaths.insert(path)
-                return ContainerStorageInput(
-                    id: container.folderName,
-                    name: name,
-                    path: path
-                )
-            }
-
-            let tweak: URL?
-            if let tweakFolder = app.appInfo.tweakFolder {
-                let basePath = app.appInfo.isShared ? LCPath.lcGroupTweakPath : LCPath.tweakPath
-                let path = basePath.appendingPathComponent(tweakFolder)
-                tweakPaths.insert(path)
-                tweak = path
-            } else {
-                tweak = nil
-            }
-
-            appInputs.append(
-                AppStorageInput(
-                    id: app.appInfo.bundleIdentifier(),
-                    name: app.appInfo.displayName(),
-                    bundlePath: app.appInfo.bundlePath(),
-                    containers: containers,
-                    tweakPath: tweak,
-                    version: app.appInfo.version(),
-                    bundleIdentifier: app.appInfo.bundleIdentifier(),
-                    lastUsedAt: app.appInfo.lastLaunched
-                )
-            )
-        }
-
-        return ManagedPaths(
-            containerPaths: Array(containerPaths),
-            tweakPaths: Array(tweakPaths),
-            appInputs: appInputs
-        )
-    }
-
     nonisolated private static func calculateAppItem(
-        from input: AppStorageInput,
-        bundleAttributionEnabled: Bool
+        from input: LCAppModel,
     ) async throws -> LCAppStorageItem {
         var containerDetails: [LCAppStorageContainerItem] = []
-        containerDetails.reserveCapacity(input.containers.count)
+        containerDetails.reserveCapacity(input.uiContainers.count)
 
         var containersSize: Int64 = 0
-        for container in input.containers {
-            let size = try await calculateSize(at: container.path)
-            containersSize += size
+        for container in input.uiContainers {
+            if container.bookmarkResolved {
+                let _ = container.containerURL.startAccessingSecurityScopedResource()
+            }
+            
+            let size = try await calculateSize(at: container.containerURL)
+            
+            if container.bookmarkResolved {
+                container.containerURL.stopAccessingSecurityScopedResource()
+            }
+            
+            if container.storageBookMark == nil {
+                containersSize += size
+            }
             containerDetails.append(
                 LCAppStorageContainerItem(
-                    id: container.id,
+                    id: UUID(),
                     name: container.name,
-                    size: size
+                    size: size,
+                    isExternalContainer: container.storageBookMark != nil
                 )
             )
         }
 
-        let tweaksSize: Int64
-        if let tweakPath = input.tweakPath {
-            tweaksSize = try await calculateSize(at: tweakPath)
-        } else {
-            tweaksSize = 0
-        }
 
         let bundleSize: Int64?
-        if bundleAttributionEnabled, let bundlePath = input.bundlePath {
+        if let bundlePath = input.appInfo.bundlePath() {
             bundleSize = try await calculateSize(at: URL(fileURLWithPath: bundlePath))
         } else {
             bundleSize = nil
         }
+        
+        let totalSize: Int64
+        if input.appInfo is BuiltInSideStoreAppInfo {
+            totalSize = containersSize
+        } else {
+            totalSize = (bundleSize ?? 0) + containersSize
+        }
 
         return LCAppStorageItem(
-            id: input.id,
-            name: input.name,
-            bundlePath: input.bundlePath,
+            id: UUID(),
+            appModel: input,
             bundleSize: bundleSize,
             containersSize: containersSize,
-            tweaksSize: tweaksSize,
-            totalSize: (bundleSize ?? 0) + containersSize + tweaksSize,
-            version: input.version,
-            bundleIdentifier: input.bundleIdentifier,
-            lastUsedAt: input.lastUsedAt,
+            totalSize: totalSize,
             containerDetails: containerDetails
         )
     }
 
     nonisolated private static func calculateAppItems(
-        from inputs: [AppStorageInput],
-        bundleAttributionEnabled: Bool
+        from inputs: [LCAppModel]
     ) async throws -> [LCAppStorageItem] {
         var appItems: [LCAppStorageItem] = []
         appItems.reserveCapacity(inputs.count)
@@ -271,8 +215,7 @@ final class LCStorageManagementModel: ObservableObject {
             for input in inputs {
                 group.addTask(priority: .utility) {
                     try await calculateAppItem(
-                        from: input,
-                        bundleAttributionEnabled: bundleAttributionEnabled
+                        from: input
                     )
                 }
             }
@@ -284,7 +227,7 @@ final class LCStorageManagementModel: ObservableObject {
 
         return appItems.sorted {
             if $0.totalSize == $1.totalSize {
-                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+                return ($0.appModel.displayName).localizedCaseInsensitiveCompare($1.appModel.displayName) == .orderedAscending
             }
             return $0.totalSize > $1.totalSize
         }

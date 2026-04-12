@@ -99,25 +99,6 @@ struct LCContainerView : View {
                     Text("lc.container.defaultContainerDesc".loc)
                 }
 
-                Section("Storage") {
-                    if let calculatedSizeInBytes = container.calculatedSizeInBytes {
-                        Text(formatCalculatedSize(bytes: calculatedSizeInBytes))
-                    }
-
-                    if let sizeCalculationError = container.sizeCalculationError {
-                        Text(sizeCalculationError)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                    }
-
-                    Button {
-                        Task { await container.refreshCalculatedSize() }
-                    } label: {
-                        Text("lc.common.calculate".loc)
-                    }
-                    .disabled(container.isCalculatingSize)
-                }
-
                 Section {
                     if inUse {
                         Text("lc.container.inUse".loc)
@@ -234,13 +215,6 @@ struct LCContainerView : View {
             inUse = runningLC != nil
         }
         
-    }
-    
-    
-    func formatCalculatedSize(bytes: Int64) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: bytes)
     }
 
     func saveContainer() {
