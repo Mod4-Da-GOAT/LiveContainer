@@ -328,8 +328,6 @@ struct LCSettingsView: View {
                     }
                 } header: {
                     Text("lc.settings.about".loc)
-                } footer: {
-                    Text("lc.settings.warning".loc)
                 }
                 Section {
                     HStack {
