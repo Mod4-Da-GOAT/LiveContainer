@@ -37,39 +37,16 @@ static NSUserDefaults *g_lcDefaults = nil;
 // "selected" was cleared by LCBootstrap before invokeAppMain; synchronize() ensures
 // that write is on disk before the process is killed.
 static void lceb_relaunchLC(void) {
-    // Flush the cleared "selected" key to disk before we die.
-    // We call synchronize() synchronously here (on the main thread) so the write
-    // is guaranteed to be committed before the dispatch_after block fires the kill.
-    // A second synchronize() inside the block is NOT needed and was previously
-    // causing a use-after-free if g_lcDefaults had been deallocated during teardown.
     [g_lcDefaults synchronize];
 
-    // Use the real LC bundle ID from lcMainBundle (set by LCBootstrap before
-    // invokeAppMain, so it reflects the actual LC bundle, not the guest).
     NSString *lcBundleID = lcMainBundle.bundleIdentifier;
     if (!lcBundleID) {
         lcBundleID = [NSString stringWithFormat:@"com.kdt.%@",
                       g_lcScheme ?: @"livecontainer"];
     }
 
-    // Open LC directly via SpringBoard, bypassing all UIKit/TweakLoader hooks.
     [[LSApplicationWorkspace defaultWorkspace] openApplicationWithBundleID:lcBundleID];
 
-    // Give SpringBoard ~300 ms to register the open request before we kill.
-    //
-    // We use a raw SIGKILL syscall rather than raise(SIGKILL) or exit() because:
-    //   • exit() runs C runtime teardown (atexit, ObjC destructors) whose
-    //     hooked function pointers may already be invalid, causing a crash the
-    //     OS records instead of clean termination → SpringBoard may block relaunch.
-    //   • raise(SIGKILL) goes through the signal() infrastructure which can be
-    //     intercepted by some crash reporters injected by TweakLoader.
-    //   • The direct svc #0x80 SYS_kill below is uninterceptable and matches
-    //     exactly what the original LCExitButton code intended.
-    //
-    // There is NO fallback raise(SIGKILL) after the dispatch_after block —
-    // that was the previous bug: the raise() fired immediately (before the
-    // 300ms delay), killing the process before SpringBoard could register the
-    // open request, so the relaunch never happened.
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
         __asm__ __volatile__ (
@@ -77,8 +54,6 @@ static void lceb_relaunchLC(void) {
             "mov x16, #26\n"  // SYS_kill
             "svc #0x80\n"
         );
-        // The line below is logically unreachable — the svc kills the process.
-        // It exists only to silence static-analysis warnings about missing kills.
         _exit(1);
     });
 }
@@ -94,7 +69,6 @@ static void lceb_relaunchLC(void) {
     if (!window || !g_lcDefaults) return;
 
     id stored = [g_lcDefaults objectForKey:@"LCShowExitButton"];
-    // Default is NO — user must explicitly enable in LC settings.
     BOOL showButton = stored ? [g_lcDefaults boolForKey:@"LCShowExitButton"] : NO;
     if (!showButton) return;
 
@@ -151,9 +125,23 @@ static void lceb_relaunchLC(void) {
 }
 
 - (void)exitButtonTapped {
+    // Walk up to the topmost presented VC safely
     UIViewController *rootVC = self.window.rootViewController;
-    while (rootVC.presentedViewController) {
+    if (!rootVC) return;
+    
+    NSInteger safetyCounter = 0;
+    while (rootVC.presentedViewController && safetyCounter < 20) {
         rootVC = rootVC.presentedViewController;
+        safetyCounter++;
+    }
+
+    // If the topmost VC is being dismissed, wait and retry
+    if (rootVC.isBeingDismissed) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            [self exitButtonTapped];
+        });
+        return;
     }
 
     UIAlertController *alert = [UIAlertController
@@ -182,49 +170,38 @@ static void lceb_relaunchLC(void) {
 
 @end
 
-// ─── UIWindow hooks ────────────────────────────────────────────
-static IMP orig_makeKeyAndVisible;
-static void hook_makeKeyAndVisible(UIWindow *self, SEL _cmd) {
-    ((void (*)(id, SEL))orig_makeKeyAndVisible)(self, _cmd);
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
-        [LCExitButtonView installInWindow:self];
-    });
-}
-
-static IMP orig_layoutSubviews;
-static void hook_layoutSubviews(UIWindow *self, SEL _cmd) {
-    ((void (*)(id, SEL))orig_layoutSubviews)(self, _cmd);
-    if (!self.isKeyWindow) return;
-    for (UIView *sub in self.subviews) {
-        if ([sub isKindOfClass:[LCExitButtonView class]]) {
-            [LCExitButtonView installInWindow:self];
-            break;
-        }
-    }
-}
+// ─── Notification-based window observer ───────────────────────
+// We use UIWindowDidBecomeKeyNotification instead of swizzling
+// makeKeyAndVisible / layoutSubviews. UIKit+GuestHooks already swizzles
+// makeKeyAndVisible via method_exchangeImplementations; adding a second
+// hook with method_setImplementation corrupts both hook chains and causes
+// a crash on button tap. Notifications achieve the same result with zero
+// interaction with the existing swizzle chain.
+static id g_windowObserver = nil;
 
 // ─── Entry point ───────────────────────────────────────────────
-// MUST be called before NUDGuestHooksInit() so lcUserDefaults is
-// still the real LC defaults (not yet redirected to guest container).
-// isSideStore must be passed in — it is set by LiveContainerMain before
-// invokeAppMain is called, so it is known at this call site.
 void LCExitButtonGuestHooksInit(BOOL isLiveProcess, BOOL isSideStore) {
-    // Skip for LiveProcess (multitask) and for built-in SideStore —
-    // SideStore has its own back-to-LiveContainer button.
     if (isLiveProcess || isSideStore) return;
 
     g_lcScheme   = [lcAppUrlScheme copy];
     g_lcDefaults = lcUserDefaults;
 
     id stored = [g_lcDefaults objectForKey:@"LCShowExitButton"];
-    // Default is NO — user must explicitly enable.
     BOOL showButton = stored ? [g_lcDefaults boolForKey:@"LCShowExitButton"] : NO;
     if (!showButton) return;
 
-    Class cls = [UIWindow class];
-    Method m1 = class_getInstanceMethod(cls, @selector(makeKeyAndVisible));
-    orig_makeKeyAndVisible = method_setImplementation(m1, (IMP)hook_makeKeyAndVisible);
-    Method m2 = class_getInstanceMethod(cls, @selector(layoutSubviews));
-    orig_layoutSubviews    = method_setImplementation(m2, (IMP)hook_layoutSubviews);
+    // Observe window becoming key instead of swizzling makeKeyAndVisible.
+    // This fires after UIKit has fully set up the window, giving us a safe
+    // moment to add the exit button without racing the swizzle chain.
+    g_windowObserver = [[NSNotificationCenter defaultCenter]
+        addObserverForName:UIWindowDidBecomeKeyNotification
+        object:nil
+        queue:[NSOperationQueue mainQueue]
+        usingBlock:^(NSNotification *note) {
+            UIWindow *window = note.object;
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)),
+                           dispatch_get_main_queue(), ^{
+                [LCExitButtonView installInWindow:window];
+            });
+        }];
 }
