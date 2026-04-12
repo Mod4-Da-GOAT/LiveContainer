@@ -211,9 +211,7 @@ struct LCUpdatesView: View {
             }) {
                 try? await Task.sleep(nanoseconds: 200_000_000)
             }
-            await MainActor.run { [self] in
-                queuedBundleIds.remove(bundleId)
-            }
+            removeBadge(bundleId: bundleId)
         }
     }
 
@@ -239,6 +237,11 @@ struct LCUpdatesView: View {
         }
         queuedBundleIds.removeAll()
         isUpdatingAll = false
+    }
+
+    @MainActor
+    private func removeBadge(bundleId: String) {
+        queuedBundleIds.remove(bundleId)
     }
 
     /// Reconcile queuedBundleIds against active download items.
