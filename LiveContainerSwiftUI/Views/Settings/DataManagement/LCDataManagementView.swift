@@ -24,6 +24,7 @@ struct LCDataManagementView : View {
     
     @StateObject private var keyChainRemovalAlert = YesNoHelper()
     @StateObject private var tmpRemovalAlert = YesNoHelper()
+    @StateObject private var clearIconCacheAlert = YesNoHelper()
     
     @State var errorShow = false
     @State var errorInfo = ""
@@ -91,7 +92,7 @@ struct LCDataManagementView : View {
             
             Section {
                 Button {
-                    Task { await clearIconCache() }
+                    Task { await confirmAndClearIconCache() }
                 } label: {
                     Text("lc.settings.clearIconCache".loc)
                 }
@@ -191,6 +192,18 @@ struct LCDataManagementView : View {
             }
         } message: {
             Text("This will completely reset NSUserDefaults to fix issue due to corruption (supports both legacy and new storage systems). LiveContainer will restart with clean preferences. Your app data in Files/LiveContainer is preserved.")
+        }
+        .alert("lc.settings.clearIconCache".loc, isPresented: $clearIconCacheAlert.show) {
+            Button(role: .destructive) {
+                clearIconCacheAlert.close(result: true)
+            } label: {
+                Text("lc.common.confirm".loc)
+            }
+            Button("lc.common.cancel".loc, role: .cancel) {
+                clearIconCacheAlert.close(result: false)
+            }
+        } message: {
+            Text("lc.settings.clearIconCacheMsg".loc)
         }
     }
     
@@ -688,16 +701,22 @@ struct LCDataManagementView : View {
         }
     }
     
+    func confirmAndClearIconCache() async {
+        guard let confirmed = await clearIconCacheAlert.open(), confirmed else { return }
+        await clearIconCache()
+        successInfo = "lc.settings.clearIconCacheDone".loc
+        successShow = true
+    }
+
     func clearIconCache() async {
         for app in sharedModel.apps {
             app.appInfo.clearIconCache()
         }
-        // Also clear hidden apps
         for app in sharedModel.hiddenApps {
             app.appInfo.clearIconCache()
         }
         // Flush iconservicesd's system-wide cache so Files.app and Springboard
-        // immediately pick up the refreshed icons without requiring a reinstall.
+        // immediately show refreshed icons without requiring a reinstall.
         LCAppInfo.flushSystemIconCache()
     }
 
