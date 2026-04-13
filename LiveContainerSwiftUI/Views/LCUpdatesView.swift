@@ -37,6 +37,16 @@ struct LCUpdatesView: View {
     /// Bundle IDs currently queued for download in this view (for button state).
     @State private var queuedBundleIds: Set<String> = []
 
+    /// File picker — "From File" in the install tray.
+    @State private var choosingIPA = false
+
+    /// URL input helper — "From URL" in the install tray.
+    @StateObject private var installUrlInput = InputHelper()
+
+    /// Error display for installs triggered from this tab.
+    @State private var errorShow = false
+    @State private var errorInfo = ""
+
     /// Non-update alert: shown when a downloaded IPA doesn't match any installed app.
     @State private var notAnUpdateAlertShown   = false
     @State private var notAnUpdateAppName      = ""
@@ -159,8 +169,21 @@ struct LCUpdatesView: View {
             // Updates tab only shows the tray for tracking; the install actions
             // (From File / From URL) are intentionally omitted here — updates come
             // from sources. We pass nil callbacks so the tray shows download rows only.
-            DownloadTrayView(manager: sharedModel.downloadHelper)
-                .padding(.bottom, 0)
+            DownloadTrayView(
+                manager: sharedModel.downloadHelper,
+                onInstallIPA: { choosingIPA = true },
+                onInstallURL: {
+                    Task {
+                        guard let urlStr = await installUrlInput.open(),
+                              urlStr.count > 0 else { return }
+                        NotificationCenter.default.post(
+                            name: NSNotification.InstallAppNotification,
+                            object: ["url": URL(string: urlStr) as Any]
+                        )
+                    }
+                }
+            )
+            .padding(.bottom, 0)
         }
         // Non-update alert
         .alert("lc.updates.notAnUpdate.title".loc, isPresented: $notAnUpdateAlertShown) {
@@ -171,6 +194,35 @@ struct LCUpdatesView: View {
         } message: {
             Text("lc.updates.notAnUpdate.message %@".localizeWithFormat(notAnUpdateAppName))
         }
+        // Error alert for installs triggered from this tab
+        .alert("lc.common.error".loc, isPresented: $errorShow) {
+            Button("lc.common.ok".loc) { }
+        } message: {
+            Text(errorInfo)
+        }
+        // File picker — "From File"
+        .betterFileImporter(
+            isPresented: $choosingIPA,
+            types: [.ipa, .tipa],
+            multiple: false,
+            callback: { fileUrls in
+                guard let fileUrl = fileUrls.first else { return }
+                NotificationCenter.default.post(
+                    name: NSNotification.InstallAppNotification,
+                    object: ["url": fileUrl]
+                )
+            },
+            onDismiss: { choosingIPA = false }
+        )
+        // URL text-field alert — "From URL"
+        .textFieldAlert(
+            isPresented: $installUrlInput.show,
+            title: "lc.appList.installUrlInputTip".loc,
+            text: $installUrlInput.initVal,
+            placeholder: "https://",
+            action: { newText in installUrlInput.close(result: newText) },
+            actionCancel: { _ in installUrlInput.close(result: nil) }
+        )
     }
 
     // ── Actions ───────────────────────────────────────────────────────────────
