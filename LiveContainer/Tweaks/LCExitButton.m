@@ -26,17 +26,13 @@ static NSUserDefaults *g_lcDefaults = nil;
 
 // ─── Relaunch LC ──────────────────────────────────────────────
 // In single-app mode the guest runs inside the LC process.
-// We must NOT use UIApplication.openURL("livecontainer://livecontainer-relaunch") —
-// UIKit+GuestHooks.hook_openURL intercepts it, and because canAppOpenItself()
-// returns YES (this IS the LC process), the hook re-wraps it as
-// "livecontainer://open-url?url=<base64>" before SIGKILL fires. LC then
-// relaunches receiving a mangled open-url instead of showing its own UI → crash.
-//
-// Fix: open LC via LSApplicationWorkspace.openApplicationWithBundleID: which is
-// not hooked by TweakLoader and goes straight to SpringBoard.
-// "selected" was cleared by LCBootstrap before invokeAppMain; synchronize() ensures
-// that write is on disk before the process is killed.
+// We open LC directly via LSApplicationWorkspace (not openURL) because
+// hook_openURL in UIKit+GuestHooks intercepts livecontainer:// URLs and
+// re-wraps them as open-url?url=<base64> before any kill fires, causing
+// LC to relaunch to the wrong screen.
+// LSApplicationWorkspace goes straight to SpringBoard, bypassing all hooks.
 static void lceb_relaunchLC(void) {
+    // Flush the cleared "selected" key to disk before we die.
     [g_lcDefaults synchronize];
 
     NSString *lcBundleID = lcMainBundle.bundleIdentifier;
@@ -45,16 +41,18 @@ static void lceb_relaunchLC(void) {
                       g_lcScheme ?: @"livecontainer"];
     }
 
+    // Open LC directly via SpringBoard, bypassing all UIKit/TweakLoader hooks.
     [[LSApplicationWorkspace defaultWorkspace] openApplicationWithBundleID:lcBundleID];
 
+    // Give SpringBoard ~300ms to register the open request, then terminate.
+    // We use raise(SIGKILL) — Darwin SIGKILL = 9, which is clean and uninterceptable.
+    // Previous code used inline asm "mov x0,#31 / mov x16,#26 / svc #0x80" which is
+    // wrong on Darwin/XNU: syscall 26 = recvfrom (not kill), and signal 31 = SIGUSR2
+    // (not SIGKILL). The process only died because _exit(1) was the fallback.
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
-        __asm__ __volatile__ (
-            "mov x0, #31\n"   // SIGKILL = 31
-            "mov x16, #26\n"  // SYS_kill
-            "svc #0x80\n"
-        );
-        _exit(1);
+        raise(SIGKILL);
+        _exit(1); // unreachable, silences static analysis
     });
 }
 
@@ -68,11 +66,19 @@ static void lceb_relaunchLC(void) {
 + (void)installInWindow:(UIWindow *)window {
     if (!window || !g_lcDefaults) return;
 
+    // Only attach to real app windows that have a rootViewController and belong
+    // to a UIWindowScene. Transient system windows (keyboard, permission prompts,
+    // crash reporters, etc.) have no rootViewController — calling
+    // presentViewController: on nil crashes the process.
+    if (!window.rootViewController) return;
+    if (![window.windowScene isKindOfClass:[UIWindowScene class]]) return;
+
     id stored = [g_lcDefaults objectForKey:@"LCShowExitButton"];
+    // Default is NO — user must explicitly enable in LC settings.
     BOOL showButton = stored ? [g_lcDefaults boolForKey:@"LCShowExitButton"] : NO;
     if (!showButton) return;
 
-    // Remove existing
+    // Remove any existing exit button in this window before re-adding.
     for (UIView *sub in [window.subviews copy]) {
         if ([sub isKindOfClass:[LCExitButtonView class]]) {
             [sub removeFromSuperview];
@@ -125,17 +131,22 @@ static void lceb_relaunchLC(void) {
 }
 
 - (void)exitButtonTapped {
-    // Walk up to the topmost presented VC safely
-    UIViewController *rootVC = self.window.rootViewController;
+    // self.window can be nil if the view was removed between tap and handler firing.
+    UIWindow *win = self.window;
+    if (!win) return;
+
+    // Walk to the topmost presented VC. Guard against cycles and against
+    // VCs that are mid-dismissal (presentViewController: on those crashes).
+    UIViewController *rootVC = win.rootViewController;
     if (!rootVC) return;
-    
-    NSInteger safetyCounter = 0;
-    while (rootVC.presentedViewController && safetyCounter < 20) {
+
+    NSInteger guard = 0;
+    while (rootVC.presentedViewController && !rootVC.presentedViewController.isBeingDismissed && guard < 20) {
         rootVC = rootVC.presentedViewController;
-        safetyCounter++;
+        guard++;
     }
 
-    // If the topmost VC is being dismissed, wait and retry
+    // If the topmost VC is itself being dismissed, retry shortly.
     if (rootVC.isBeingDismissed) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)),
                        dispatch_get_main_queue(), ^{
@@ -171,16 +182,26 @@ static void lceb_relaunchLC(void) {
 @end
 
 // ─── Notification-based window observer ───────────────────────
-// We use UIWindowDidBecomeKeyNotification instead of swizzling
-// makeKeyAndVisible / layoutSubviews. UIKit+GuestHooks already swizzles
-// makeKeyAndVisible via method_exchangeImplementations; adding a second
-// hook with method_setImplementation corrupts both hook chains and causes
-// a crash on button tap. Notifications achieve the same result with zero
-// interaction with the existing swizzle chain.
+// We observe UIWindowDidBecomeKeyNotification instead of swizzling
+// makeKeyAndVisible or layoutSubviews on UIWindow.
+//
+// Swizzling makeKeyAndVisible conflicts with UIKit+GuestHooks which also
+// swizzles the same selector via method_exchangeImplementations. Using
+// method_setImplementation first and then having GuestHooks call
+// method_exchangeImplementations corrupts both hook chains, producing an
+// infinite call loop that crashes on the first button tap.
+//
+// The notification fires AFTER the window is fully presented, giving us a
+// safe moment to add the button without touching the swizzle chain at all.
+// installInWindow: filters out system/overlay windows (no rootViewController
+// or no UIWindowScene) so we never attach to transient OS windows.
 static id g_windowObserver = nil;
 
 // ─── Entry point ───────────────────────────────────────────────
+// MUST be called before NUDGuestHooksInit() so g_lcDefaults captures
+// lcUserDefaults before it is redirected to the guest container.
 void LCExitButtonGuestHooksInit(BOOL isLiveProcess, BOOL isSideStore) {
+    // Skip for LiveProcess (multitask) and built-in SideStore.
     if (isLiveProcess || isSideStore) return;
 
     g_lcScheme   = [lcAppUrlScheme copy];
@@ -190,15 +211,17 @@ void LCExitButtonGuestHooksInit(BOOL isLiveProcess, BOOL isSideStore) {
     BOOL showButton = stored ? [g_lcDefaults boolForKey:@"LCShowExitButton"] : NO;
     if (!showButton) return;
 
-    // Observe window becoming key instead of swizzling makeKeyAndVisible.
-    // This fires after UIKit has fully set up the window, giving us a safe
-    // moment to add the exit button without racing the swizzle chain.
+    // Register for window-became-key events. Each time any window becomes key
+    // we attempt to install the exit button; installInWindow: handles filtering
+    // (wrong window type, button already present, etc.) idempotently.
     g_windowObserver = [[NSNotificationCenter defaultCenter]
         addObserverForName:UIWindowDidBecomeKeyNotification
         object:nil
         queue:[NSOperationQueue mainQueue]
         usingBlock:^(NSNotification *note) {
             UIWindow *window = note.object;
+            // Delay slightly so the window's rootViewController and safe-area
+            // insets are fully populated before we try to read them.
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)),
                            dispatch_get_main_queue(), ^{
                 [LCExitButtonView installInWindow:window];
