@@ -19,86 +19,66 @@ extern NSBundle       *lcMainBundle;   // LC's real bundle, set by LCBootstrap b
 static NSString       *g_lcScheme   = nil;
 static NSUserDefaults *g_lcDefaults = nil;
 
-@interface LSApplicationWorkspace : NSObject
-+ (instancetype)defaultWorkspace;
-- (BOOL)openApplicationWithBundleID:(NSString *)bundleID;
-@end
-
 // ─── Relaunch LC ──────────────────────────────────────────────
 //
-// This mirrors the approach used by SideStore's "back to AppNest" button
-// (SideStore/LiveContainerSupport/XPCClient.m: -relaunchLC calls
-// [LCSharedUtils launchToGuestApp]).
+// Mirrors SideStore's "back to AppNest" approach:
+//   SideStore/LiveContainerSupport/XPCClient.m -relaunchLC
+//   → [LCSharedUtils launchToGuestApp]
 //
-// [LCSharedUtils launchToGuestApp] handles three cases in order:
-//   1. TrollStore    → apple-magnifier://enable-jit?bundle-id=…  (opens magnifier, not LC)
-//   2. StikJIT       → stikjit://enable-jit?bundle-id=…          (opens StikJIT, not LC)
-//   3. SideStore JIT → sidestore://sidejit-enable?bid=…          (opens SideStore, not LC)
-//   4. Default       → livecontainer://livecontainer-relaunch (+ raise(SIGKILL))
+// launchToGuestApp tries three JIT-enabler paths first (TrollStore, StikJIT,
+// SideStore), then falls back to opening livecontainer-relaunch via UIKit.
 //
-// Cases 1–3 open OTHER apps so UIKit+GuestHooks.hook_openURL doesn't intercept them
-// (canAppOpenItself() returns NO for schemes that aren't the LC scheme).
-//
-// Case 4 is the problem: hook_openURL sees "livecontainer://" → canAppOpenItself()
-// returns YES → it wraps the URL as open-url?url=<base64> before kill fires →
-// LC relaunches to the wrong screen.
-//
-// Fix for case 4: instead of openURL, use LSApplicationWorkspace directly.
-// LSApplicationWorkspace.openApplicationWithBundleID: goes straight to SpringBoard,
-// bypassing every UIKit hook installed by TweakLoader.
-//
-// We replicate launchToGuestApp's JIT-URL logic ourselves for cases 1–3
-// (so we get the same TrollStore/StikJIT/SideStore behaviour), then use
-// LSApplicationWorkspace + raise(SIGKILL) for the default case.
+// We replicate that same priority order, but for the default path we use
+// LSApplicationWorkspace instead of openURL because UIKit+GuestHooks.hook_openURL
+// intercepts the livecontainer:// scheme (canAppOpenItself returns YES) and
+// re-wraps it as open-url?url=<base64> before SIGKILL fires, causing LC to
+// relaunch to the wrong screen.  LSApplicationWorkspace.openApplicationWithBundleID:
+// goes straight to SpringBoard and is not hooked by TweakLoader.
 //
 static void lceb_relaunchLC(void) {
     [g_lcDefaults synchronize];
 
-    UIApplication *application = UIApplication.sharedApplication;
+    UIApplication *app = UIApplication.sharedApplication;
+    // NSBundle.mainBundle at this point is the GUEST bundle (after overwriteMainNSBundle).
+    NSString *guestBundleId = NSBundle.mainBundle.bundleIdentifier;
 
     // ── Case 1: TrollStore ────────────────────────────────────────────────────
-    NSString *tsPath = [NSString stringWithFormat:@"%@/../_TrollStore",
-                        lcMainBundle.bundlePath];
-    if (!LCSharedUtils.certificatePassword &&
-        access(tsPath.UTF8String, F_OK) == 0) {
-        NSString *bundleId = NSBundle.mainBundle.bundleIdentifier; // guest bundle
-        NSURL *url = [NSURL URLWithString:
-                      [NSString stringWithFormat:@"apple-magnifier://enable-jit?bundle-id=%@",
-                       bundleId]];
-        if ([application canOpenURL:url]) {
-            [application openURL:url options:@{} completionHandler:^(BOOL ok) {
-                raise(SIGKILL);
-                _exit(1);
-            }];
-            return;
-        }
-    }
-
-    // ── Case 2: StikJIT ───────────────────────────────────────────────────────
     if (!LCSharedUtils.certificatePassword) {
+        NSString *tsPath = [NSString stringWithFormat:@"%@/../_TrollStore",
+                            lcMainBundle.bundlePath];
+        if (access(tsPath.UTF8String, F_OK) == 0) {
+            NSURL *url = [NSURL URLWithString:
+                [NSString stringWithFormat:@"apple-magnifier://enable-jit?bundle-id=%@",
+                 guestBundleId]];
+            if ([app canOpenURL:url]) {
+                [app openURL:url options:@{} completionHandler:^(BOOL ok) {
+                    raise(SIGKILL);
+                    _exit(1);
+                }];
+                return;
+            }
+        }
+
+        // ── Case 2: StikJIT ───────────────────────────────────────────────────
         NSURL *stikTest = [NSURL URLWithString:@"stikjit://"];
-        if ([application canOpenURL:stikTest]) {
-            NSString *bundleId = NSBundle.mainBundle.bundleIdentifier;
+        if ([app canOpenURL:stikTest]) {
             NSURL *url = [NSURL URLWithString:
-                          [NSString stringWithFormat:@"stikjit://enable-jit?bundle-id=%@",
-                           bundleId]];
-            [application openURL:url options:@{} completionHandler:^(BOOL ok) {
+                [NSString stringWithFormat:@"stikjit://enable-jit?bundle-id=%@",
+                 guestBundleId]];
+            [app openURL:url options:@{} completionHandler:^(BOOL ok) {
                 raise(SIGKILL);
                 _exit(1);
             }];
             return;
         }
-    }
 
-    // ── Case 3: SideStore JIT ────────────────────────────────────────────────
-    if (!LCSharedUtils.certificatePassword) {
+        // ── Case 3: SideStore JIT ─────────────────────────────────────────────
         NSURL *ssTest = [NSURL URLWithString:@"sidestore://"];
-        if ([application canOpenURL:ssTest]) {
-            NSString *bundleId = NSBundle.mainBundle.bundleIdentifier;
+        if ([app canOpenURL:ssTest]) {
             NSURL *url = [NSURL URLWithString:
-                          [NSString stringWithFormat:@"sidestore://sidejit-enable?bid=%@",
-                           bundleId]];
-            [application openURL:url options:@{} completionHandler:^(BOOL ok) {
+                [NSString stringWithFormat:@"sidestore://sidejit-enable?bid=%@",
+                 guestBundleId]];
+            [app openURL:url options:@{} completionHandler:^(BOOL ok) {
                 raise(SIGKILL);
                 _exit(1);
             }];
@@ -106,22 +86,29 @@ static void lceb_relaunchLC(void) {
         }
     }
 
-    // ── Case 4: Default — open LC via SpringBoard, bypass all UIKit hooks ────
-    // We do NOT use openURL("livecontainer://livecontainer-relaunch") here because
-    // UIKit+GuestHooks.hook_openURL intercepts it (canAppOpenItself returns YES for
-    // the LC scheme) and re-wraps it as open-url?url=<base64> before the kill fires,
-    // causing LC to relaunch to the wrong screen.
-    //
-    // LSApplicationWorkspace.openApplicationWithBundleID: goes straight to SpringBoard
-    // and is not intercepted by any TweakLoader hook.
+    // ── Case 4: Default — LSApplicationWorkspace, bypasses all UIKit hooks ───
+    // Build the LC bundle ID from lcMainBundle (captured before invokeAppMain
+    // swapped mainBundle, so it always points to the real LC bundle).
     NSString *lcBundleID = lcMainBundle.bundleIdentifier;
     if (!lcBundleID) {
         lcBundleID = [NSString stringWithFormat:@"com.kdt.%@",
                       g_lcScheme ?: @"livecontainer"];
     }
 
-    [[LSApplicationWorkspace defaultWorkspace] openApplicationWithBundleID:lcBundleID];
+    // Use the class via id to avoid "no known class method" compiler error.
+    Class lsClass = NSClassFromString(@"LSApplicationWorkspace");
+    if (lsClass) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        id workspace = [(id)lsClass performSelector:NSSelectorFromString(@"defaultWorkspace")];
+        if (workspace) {
+            [workspace performSelector:NSSelectorFromString(@"openApplicationWithBundleID:")
+                           withObject:lcBundleID];
+        }
+#pragma clang diagnostic pop
+    }
 
+    // Give SpringBoard ~300 ms to register the open request, then kill.
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
         raise(SIGKILL);
@@ -140,8 +127,7 @@ static void lceb_relaunchLC(void) {
     if (!window || !g_lcDefaults) return;
 
     // Only attach to real app windows — not system overlay windows
-    // (keyboard, permission dialogs, etc.) which have no rootViewController.
-    // Tapping the button on such windows would crash when trying to present an alert.
+    // (keyboard, permission prompts, etc.) which have no rootViewController.
     if (!window.rootViewController) return;
     if (![window.windowScene isKindOfClass:[UIWindowScene class]]) return;
 
@@ -171,7 +157,8 @@ static void lceb_relaunchLC(void) {
     CGFloat x       = onRight ? (winW - size - 12.0f) : 12.0f;
     CGFloat y       = safeTop + 8.0f;
 
-    LCExitButtonView *v = [[LCExitButtonView alloc] initWithFrame:CGRectMake(x, y, size, size)];
+    LCExitButtonView *v = [[LCExitButtonView alloc]
+                           initWithFrame:CGRectMake(x, y, size, size)];
     v.backgroundColor        = [UIColor clearColor];
     v.userInteractionEnabled = YES;
     v.layer.zPosition        = 9999.0f;
@@ -181,7 +168,8 @@ static void lceb_relaunchLC(void) {
     if (@available(iOS 13.0, *)) {
         UIImageSymbolConfiguration *cfg = [UIImageSymbolConfiguration
             configurationWithPointSize:26 weight:UIImageSymbolWeightSemibold];
-        [btn setImage:[UIImage systemImageNamed:@"xmark.circle.fill" withConfiguration:cfg]
+        [btn setImage:[UIImage systemImageNamed:@"xmark.circle.fill"
+                               withConfiguration:cfg]
              forState:UIControlStateNormal];
         btn.tintColor = [UIColor whiteColor];
     } else {
@@ -209,6 +197,10 @@ static void lceb_relaunchLC(void) {
     UIViewController *rootVC = win.rootViewController;
     if (!rootVC) return;
 
+    // Guard: the root VC must actually be in the window hierarchy.
+    // Presenting on a VC whose view.window is nil causes an immediate crash.
+    if (rootVC.view.window == nil) return;
+
     NSInteger guard = 0;
     while (rootVC.presentedViewController
            && !rootVC.presentedViewController.isBeingDismissed
@@ -217,6 +209,7 @@ static void lceb_relaunchLC(void) {
         guard++;
     }
 
+    // If the topmost VC is being dismissed, retry shortly.
     if (rootVC.isBeingDismissed) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)),
                        dispatch_get_main_queue(), ^{
@@ -224,6 +217,9 @@ static void lceb_relaunchLC(void) {
         });
         return;
     }
+
+    // Final guard: the resolved VC must also be in the window hierarchy.
+    if (rootVC.view.window == nil) return;
 
     UIAlertController *alert = [UIAlertController
         alertControllerWithTitle:@"Return to AppNest?"
@@ -253,21 +249,18 @@ static void lceb_relaunchLC(void) {
 
 // ─── Notification-based window observer ───────────────────────
 // We observe UIWindowDidBecomeKeyNotification instead of swizzling
-// makeKeyAndVisible / layoutSubviews on UIWindow.
-//
-// UIKit+GuestHooks already swizzles makeKeyAndVisible via
-// method_exchangeImplementations. Installing a second hook with
-// method_setImplementation first corrupts both chains and causes an
-// infinite call loop that crashes on the first button tap. The notification
-// fires after the window is fully up — same effect, no swizzle conflict.
-//
+// UIWindow.makeKeyAndVisible.  UIKit+GuestHooks swizzles that same selector
+// via method_exchangeImplementations; installing our own hook with
+// method_setImplementation first corrupts both chains → crash on tap.
+// The notification fires after the window is fully presented, so we get the
+// same trigger with zero swizzle interaction.
 // installInWindow: filters to real app windows (rootViewController present,
 // windowScene is UIWindowScene) so we never attach to transient OS windows.
 static id g_windowObserver = nil;
 
 // ─── Entry point ───────────────────────────────────────────────
-// Must be called before NUDGuestHooksInit() so g_lcDefaults captures
-// lcUserDefaults before it is redirected to the guest container.
+// Called before NUDGuestHooksInit() so g_lcDefaults captures lcUserDefaults
+// before it is redirected to the guest container.
 void LCExitButtonGuestHooksInit(BOOL isLiveProcess, BOOL isSideStore) {
     if (isLiveProcess || isSideStore) return;
 
@@ -284,7 +277,9 @@ void LCExitButtonGuestHooksInit(BOOL isLiveProcess, BOOL isSideStore) {
         queue:[NSOperationQueue mainQueue]
         usingBlock:^(NSNotification *note) {
             UIWindow *window = note.object;
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)),
+            // Short delay so rootViewController and safeAreaInsets are populated.
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                                         (int64_t)(0.5 * NSEC_PER_SEC)),
                            dispatch_get_main_queue(), ^{
                 [LCExitButtonView installInWindow:window];
             });
