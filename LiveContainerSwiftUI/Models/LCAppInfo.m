@@ -282,21 +282,31 @@ static BOOL LCIsContainerScopedAddonKey(NSString *key) {
 // We notify LSApplicationWorkspace that the bundle has changed, which
 // causes iconservicesd to invalidate its cached ISIcon entries for this bundle.
 + (void)flushSystemIconCache {
-    Class LSAppWorkspace = NSClassFromString(@"LSApplicationWorkspace");
-    if (!LSAppWorkspace) return;
+    // NSClassFromString returns Class (opaque to the compiler), so we must use
+    // id-typed intermediates for all message sends — the compiler rejects
+    // [[Class defaultWorkspace] ...] because Class has no known selectors.
+    Class lsClass = NSClassFromString(@"LSApplicationWorkspace");
+    if (!lsClass) return;
 
-    // _LSClearApplicationCache clears iconservicesd's persistent store.
-    // This is the same call SpringBoard uses after updating an app.
-    SEL clearSel = NSSelectorFromString(@"_LSClearApplicationCache");
-    if ([LSAppWorkspace respondsToSelector:clearSel]) {
+    // Obtain the shared workspace instance via performSelector on the class object
+    // cast to id, which suppresses the "no known class method" error.
+    SEL defaultWSSel = NSSelectorFromString(@"defaultWorkspace");
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-        [[LSAppWorkspace defaultWorkspace] performSelector:clearSel];
-#pragma clang diagnostic pop
-    }
+    id workspace = [(id)lsClass performSelector:defaultWSSel];
 
-    // Also post the Darwin notification that iconservicesd listens to
-    // for app-bundle changes. Files.app re-queries icon data on this signal.
+    // _LSClearApplicationCache flushes iconservicesd's persistent icon store —
+    // the same call SpringBoard makes after an app update.
+    if (workspace) {
+        SEL clearSel = NSSelectorFromString(@"_LSClearApplicationCache");
+        if ([workspace respondsToSelector:clearSel]) {
+            [workspace performSelector:clearSel];
+        }
+    }
+#pragma clang diagnostic pop
+
+    // Darwin notification that iconservicesd and Files.app listen to
+    // for bundle-change events. Triggers a re-query of icon data.
     notify_post("com.apple.iconservices.iconchanged");
 }
 
