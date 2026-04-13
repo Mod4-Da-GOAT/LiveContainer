@@ -3,6 +3,7 @@
 
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
+#import <notify.h>
 #import "LCAppInfo.h"
 #import "LCUtils.h"
 #import "../../LiveContainer/LCSharedUtils.h"
@@ -274,6 +275,29 @@ static BOOL LCIsContainerScopedAddonKey(NSString *key) {
     [self setCachedColorDark:nil];
     _cachedIcon = nil;
     _cachedIconDark = nil;
+}
+
+// Flush the system-wide icon cache held by iconservicesd so that Files.app
+// and Springboard pick up new icons immediately without a reinstall.
+// We notify LSApplicationWorkspace that the bundle has changed, which
+// causes iconservicesd to invalidate its cached ISIcon entries for this bundle.
++ (void)flushSystemIconCache {
+    Class LSAppWorkspace = NSClassFromString(@"LSApplicationWorkspace");
+    if (!LSAppWorkspace) return;
+
+    // _LSClearApplicationCache clears iconservicesd's persistent store.
+    // This is the same call SpringBoard uses after updating an app.
+    SEL clearSel = NSSelectorFromString(@"_LSClearApplicationCache");
+    if ([LSAppWorkspace respondsToSelector:clearSel]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        [[LSAppWorkspace defaultWorkspace] performSelector:clearSel];
+#pragma clang diagnostic pop
+    }
+
+    // Also post the Darwin notification that iconservicesd listens to
+    // for app-bundle changes. Files.app re-queries icon data on this signal.
+    notify_post("com.apple.iconservices.iconchanged");
 }
 
 - (UIImage *)generateLiveContainerWrappedIconWithStyle:(GeneratedIconStyle)style {
