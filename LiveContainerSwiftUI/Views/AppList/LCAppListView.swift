@@ -640,6 +640,12 @@ func setMode(_ mode: AppLaunchMode) {
                 if let name = obj2["appName"] as? String, !name.isEmpty {
                     downloadHelper._pendingLegacyName = name
                 }
+                // Propagate the isUpdate flag sent by the Updates tab so that
+                // installFromUrl → installIpaFile knows to auto-replace and skip
+                // the install/replace dialog.
+                if let isUpdate = obj2["isUpdate"] as? Bool, isUpdate {
+                    downloadHelper.isUpdate = true
+                }
                 Task { await installFromUrl(urlStr: installUrl.absoluteString) }
             }
         }
@@ -901,29 +907,49 @@ func setMode(_ mode: AppLaunchMode) {
         
         if fm.fileExists(atPath: outputFolder.path) || sameBundleIdApp.count > 0 {
             appRelativePath = "\(newAppInfo.bundleIdentifier()!)_\(Int(CFAbsoluteTimeGetCurrent())).app"
-            
-            self.installOptions = [AppReplaceOption(isReplace: false, nameOfFolderToInstall: appRelativePath)]
-            
-            for app in sameBundleIdApp {
-                self.installOptions.append(AppReplaceOption(isReplace: true, nameOfFolderToInstall: app.appInfo.relativeBundlePath, appToReplace: app))
-            }
 
-            guard let installOptionChosen = await installReplaceAlert.open() else {
-                // user cancelled
-                self.installprogressVisible = false
-                try fm.removeItem(at: payloadPath)
-                return
-            }
-            
-            if let appToReplace = installOptionChosen.appToReplace, appToReplace.uiIsShared {
-                outputFolder = LCPath.lcGroupBundlePath.appendingPathComponent(installOptionChosen.nameOfFolderToInstall)
-            } else {
-                outputFolder = LCPath.bundlePath.appendingPathComponent(installOptionChosen.nameOfFolderToInstall)
-            }
-            appRelativePath = installOptionChosen.nameOfFolderToInstall
-            appToReplace = installOptionChosen.appToReplace
-            if installOptionChosen.isReplace {
+            // When this is an update (triggered from the Updates tab), automatically
+            // replace the first matching installed app without showing the dialog.
+            // This mirrors how a normal app-store update works — the user already
+            // confirmed the update by tapping "Update" on the Updates tab.
+            if wasUpdate, let existingApp = sameBundleIdApp.first {
+                let replaceOption = AppReplaceOption(
+                    isReplace: true,
+                    nameOfFolderToInstall: existingApp.appInfo.relativeBundlePath,
+                    appToReplace: existingApp
+                )
+                if existingApp.uiIsShared {
+                    outputFolder = LCPath.lcGroupBundlePath.appendingPathComponent(replaceOption.nameOfFolderToInstall)
+                } else {
+                    outputFolder = LCPath.bundlePath.appendingPathComponent(replaceOption.nameOfFolderToInstall)
+                }
+                appRelativePath = replaceOption.nameOfFolderToInstall
+                appToReplace = existingApp
                 try fm.removeItem(at: outputFolder)
+            } else {
+                self.installOptions = [AppReplaceOption(isReplace: false, nameOfFolderToInstall: appRelativePath)]
+                
+                for app in sameBundleIdApp {
+                    self.installOptions.append(AppReplaceOption(isReplace: true, nameOfFolderToInstall: app.appInfo.relativeBundlePath, appToReplace: app))
+                }
+
+                guard let installOptionChosen = await installReplaceAlert.open() else {
+                    // user cancelled
+                    self.installprogressVisible = false
+                    try fm.removeItem(at: payloadPath)
+                    return
+                }
+                
+                if let appToReplace = installOptionChosen.appToReplace, appToReplace.uiIsShared {
+                    outputFolder = LCPath.lcGroupBundlePath.appendingPathComponent(installOptionChosen.nameOfFolderToInstall)
+                } else {
+                    outputFolder = LCPath.bundlePath.appendingPathComponent(installOptionChosen.nameOfFolderToInstall)
+                }
+                appRelativePath = installOptionChosen.nameOfFolderToInstall
+                appToReplace = installOptionChosen.appToReplace
+                if installOptionChosen.isReplace {
+                    try fm.removeItem(at: outputFolder)
+                }
             }
         }
 
