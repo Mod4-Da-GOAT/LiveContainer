@@ -23457,48 +23457,48 @@
         }
       }
     },
-    "lc.settings.cleanTmpComplete" : {
+    "lc.settings.cleanTmpComplete": {
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Temporary files removed."
+          "stringUnit": {
+            "state": "translated",
+            "value": "Temporary files removed."
           }
         },
         "zh-Hans": {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已清理 tmp 内容。"
+          "stringUnit": {
+            "state": "translated",
+            "value": "已清理 tmp 内容。"
           }
         },
         "zh-Hant": {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已清理 tmp 內容。"
+          "stringUnit": {
+            "state": "translated",
+            "value": "已清理 tmp 內容。"
           }
         }
       }
     },
-    "lc.settings.cleanTmpConfirm" : {
+    "lc.settings.cleanTmpConfirm": {
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Do you want to delete temporary files?"
+          "stringUnit": {
+            "state": "translated",
+            "value": "Do you want to delete temporary files?"
           }
         },
         "zh-Hans": {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "要删除 tmp 内容吗？"
+          "stringUnit": {
+            "state": "translated",
+            "value": "要删除 tmp 内容吗？"
           }
         },
         "zh-Hant": {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "要刪除 tmp 內容嗎？"
+          "stringUnit": {
+            "state": "translated",
+            "value": "要刪除 tmp 內容嗎？"
           }
         }
       }
@@ -30650,6 +30650,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "The downloaded app is not installed in AppNest."
+          }
+        }
+      }
+    },
+    "lc.settings.clearIconCacheMsg": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This will clear the icon cache for all apps and refresh the icon in Files. Continue?"
+          }
+        }
+      }
+    },
+    "lc.settings.clearIconCacheDone": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Icon cache cleared."
+          }
+        }
+      }
+    },
+    "lc.common.confirm": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirm"
           }
         }
       }
