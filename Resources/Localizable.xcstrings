@@ -16925,7 +16925,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "원본 저장소 및 소유자에 대한 정보"
+            "value": "원본 저장소 및 소유자 정보"
           }
         },
         "pl": {
@@ -16943,7 +16943,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Информация об оригинальном репозитории и его владельцах."
+            "value": "Об оригинальном репозитории и его владельцах"
           }
         },
         "sv": {
@@ -16955,7 +16955,7 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Orijinal arşiv ve sahipleri hakkında"
+            "value": "Orijinal Arşiv ve Sahipleri Hakkında"
           }
         },
         "vi": {
