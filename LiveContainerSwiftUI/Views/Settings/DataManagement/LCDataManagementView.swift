@@ -692,6 +692,13 @@ struct LCDataManagementView : View {
         for app in sharedModel.apps {
             app.appInfo.clearIconCache()
         }
+        // Also clear hidden apps
+        for app in sharedModel.hiddenApps {
+            app.appInfo.clearIconCache()
+        }
+        // Flush iconservicesd's system-wide cache so Files.app and Springboard
+        // immediately pick up the refreshed icons without requiring a reinstall.
+        LCAppInfo.flushSystemIconCache()
     }
 
 }
