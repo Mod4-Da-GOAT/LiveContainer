@@ -237,9 +237,10 @@ struct LCSettingsView: View {
                             Text("lc.settings.darkModeIcon".loc)
                         }
                     }
-                    // Tint color enable/disable
+                    // Tint app icons toggle
                     Toggle("lc.settings.tintColorEnabled".loc, isOn: $tintEnabled)
-                    // Tint color picker — only shown when tinting is on
+                        .tint(.green)
+                    // Tint colour picker — only visible when enabled
                     if tintEnabled {
                         HStack {
                             Text("lc.settings.tintColorPicker".loc)
@@ -305,9 +306,6 @@ struct LCSettingsView: View {
                     Text("lc.settings.dynamicColors.desc".loc)
                 }
                 Section{
-                    Toggle(isOn: $frameShortIcon) {
-                        Text("lc.settings.FrameIcon".loc)
-                    }
                     Toggle(isOn: $showExitButton) {
                         Text("lc.settings.showExitButton".loc)
                     }
@@ -319,8 +317,6 @@ struct LCSettingsView: View {
                     }
                 } header: {
                     Text("lc.common.miscellaneous".loc)
-                } footer: {
-                    Text("lc.settings.FrameIconDesc".loc)
                 }
                 
                 Section {
@@ -820,11 +816,9 @@ struct LCSettingsView: View {
 
     static func clearCustomAppIcon() {
         UIApplication.shared.setAlternateIconName(nil)
-        // Also remove the saved PNG so it doesn't reload on next launch
         let fm = FileManager.default
         if let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first {
-            let saved = docs.appendingPathComponent("LCCustomAppIcon.png")
-            try? fm.removeItem(at: saved)
+            try? fm.removeItem(at: docs.appendingPathComponent("LCCustomAppIcon.png"))
         }
     }
 
