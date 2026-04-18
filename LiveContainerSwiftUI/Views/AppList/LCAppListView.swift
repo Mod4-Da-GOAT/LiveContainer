@@ -288,7 +288,7 @@ func setMode(_ mode: AppLaunchMode) {
                     }
                 }
                 .padding()
-                .animation(searchContext.isTyping ? nil : .easeInOut, value: filteredApps)
+                .animation(searchContext.isTyping ? nil : .easeInOut(duration: 0.2), value: filteredApps)
 
                 VStack {
                     if LCUtils.appGroupUserDefault.bool(forKey: "LCStrictHiding") {
@@ -420,6 +420,19 @@ func setMode(_ mode: AppLaunchMode) {
                     }
                 }
 
+                // ── Trailing: multi-lock/hide button (only in multi-select) ──
+                ToolbarItem(placement: .topBarTrailing) {
+                    if isMultiSelectMode {
+                        Button {
+                            Task { await lockAndHideSelectedApps() }
+                        } label: {
+                            Image(systemName: "lock.shield")
+                                .foregroundColor(selectedAppsForDeletion.isEmpty || isDeleting ? .secondary : .orange)
+                        }
+                        .disabled(selectedAppsForDeletion.isEmpty || isDeleting)
+                    }
+                }
+
                 // ── Trailing: trash button (only in multi-select) ──
                 ToolbarItem(placement: .topBarTrailing) {
                     if isMultiSelectMode {
@@ -436,14 +449,16 @@ func setMode(_ mode: AppLaunchMode) {
                 // ── Trailing: select / cancel toggle ──
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        withAnimation {
+                        var t = Transaction()
+                        t.disablesAnimations = true
+                        withTransaction(t) {
                             isMultiSelectMode.toggle()
                             if !isMultiSelectMode {
                                 selectedAppsForDeletion.removeAll()
                                 deleteAppData = false
                             }
+                            sharedModel.isMultiSelectMode = isMultiSelectMode
                         }
-                        sharedModel.isMultiSelectMode = isMultiSelectMode
                     } label: {
                         Image(systemName: isMultiSelectMode ? "xmark.circle.fill" : "checkmark.circle")
                             .foregroundColor(isMultiSelectMode ? .red : .green)
@@ -495,8 +510,7 @@ func setMode(_ mode: AppLaunchMode) {
                 onInstallIPA: { choosingIPA = true },
                 onInstallURL: { Task { await startInstallFromUrl() } }
             )
-            .padding(.bottom, isMultiSelectMode ? 48 : 0)
-            .allowsHitTesting(!isMultiSelectMode)
+            .padding(.bottom, isMultiSelectMode ? 60 : 0)
         }
 
         } // end ZStack
@@ -639,6 +653,10 @@ func setMode(_ mode: AppLaunchMode) {
                 // Pre-set the display name so the tray shows it before the download begins.
                 if let name = obj2["appName"] as? String, !name.isEmpty {
                     downloadHelper._pendingLegacyName = name
+                }
+                // Pre-set icon URL so the tray shows the app icon during download.
+                if let iconURL = obj2["iconURL"] as? URL {
+                    downloadHelper._pendingIconURL = iconURL
                 }
                 // Propagate the isUpdate flag sent by the Updates tab so that
                 // installFromUrl → installIpaFile knows to auto-replace and skip
@@ -1225,12 +1243,14 @@ func setMode(_ mode: AppLaunchMode) {
             // If a caller pre-set _pendingLegacyName (e.g. sources view set appName,
             // updates view set displayName), consume it; otherwise derive from URL.
             let presetName = downloadHelper._pendingLegacyName
+            let presetIconURL = downloadHelper._pendingIconURL
             let rawName    = installUrl.lastPathComponent
             let displayName = !presetName.isEmpty ? presetName
                 : (rawName.hasSuffix(".ipa")  ? String(rawName.dropLast(4))
                 :  rawName.hasSuffix(".tipa") ? String(rawName.dropLast(5))
                 :  rawName)
             downloadHelper._pendingLegacyName = ""
+            downloadHelper._pendingIconURL = nil
 
             let wasUpdate = downloadHelper.isUpdate
             downloadHelper.isUpdate = false
@@ -1239,6 +1259,7 @@ func setMode(_ mode: AppLaunchMode) {
                 url: installUrl,
                 destinationURL: destinationURL,
                 appName: displayName,
+                iconURL: presetIconURL,
                 isUpdate: wasUpdate
             )
             let itemID = downloadHelper.enqueue(item: item)
@@ -1691,8 +1712,35 @@ func setMode(_ mode: AppLaunchMode) {
             sharedModel.isMultiSelectMode = false
         }
     }
-    
-}
+
+    /// Lock and hide all selected apps at once.
+    func lockAndHideSelectedApps() async {
+        guard !selectedAppsForDeletion.isEmpty else { return }
+        let appsToProcess = selectedAppsForDeletion
+        isDeleting = true
+
+        for app in appsToProcess {
+            // Lock first (doesn't require auth when locking)
+            if !app.appInfo.isLocked {
+                app.appInfo.isLocked = true
+            }
+            // Then hide
+            if !app.appInfo.isHidden {
+                app.appInfo.isHidden = true
+                app.uiIsHidden = true
+                changeAppVisibility(app: app)
+            }
+        }
+
+        await MainActor.run {
+            withAnimation {
+                selectedAppsForDeletion.removeAll()
+                isMultiSelectMode = false
+                isDeleting = false
+            }
+            sharedModel.isMultiSelectMode = false
+        }
+    }
 
 extension View {
     func apply<V: View>(@ViewBuilder _ block: (Self) -> V) -> V { block(self) }
