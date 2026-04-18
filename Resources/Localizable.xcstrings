@@ -30699,7 +30699,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Enable App Tint Color"
+            "value": "Tint App Icons"
           }
         }
       }
@@ -30709,7 +30709,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Choose Color"
+            "value": "Choose Colour"
           }
         }
       }
