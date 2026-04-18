@@ -382,7 +382,7 @@ struct LCSettingsView: View {
                     }
                     HStack {
                         Image("GitHub")
-                        Button("M0d-4/LiveContainer") {
+                        Button("M0d-4/AppNest") {
                             openForkedRepo()
                         }
                     }
@@ -571,7 +571,7 @@ struct LCSettingsView: View {
     }
 
     func openForkedRepo() {
-        UIApplication.shared.open(URL(string: "https://github.com/M0d-4/LiveContainer")!)
+        UIApplication.shared.open(URL(string: "https://github.com/M0d-4/AppNest")!)
     }
 
     func isDebuggerAttached() -> Bool {
