@@ -61,8 +61,8 @@ struct LCAppBanner : View {
     }
     @State private var mainHueColor: CGFloat? = nil
 
-    /// The colour used for the banner background and text.
-    /// When the user has enabled a custom tint, that overrides the auto-extracted icon colour.
+    /// When the user has enabled a custom tint colour, override the
+    /// auto-extracted icon colour so all banners use the chosen tint.
     private var effectiveMainColor: Color {
         if tintEnabled, !tintColorHex.isEmpty {
             var hex = tintColorHex.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -76,7 +76,7 @@ struct LCAppBanner : View {
         }
         return mainColor
     }
-    
+
     var body: some View {
 
         HStack {
