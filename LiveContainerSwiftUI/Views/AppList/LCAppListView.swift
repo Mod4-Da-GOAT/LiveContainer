@@ -398,8 +398,7 @@ func setMode(_ mode: AppLaunchMode) {
                     }
                 }
 
-                // ── Trailing: all trailing buttons in one ToolbarItemGroup
-                // to prevent iOS collapsing them into "..." overflow menu ──
+                // ── Trailing: single ToolbarItemGroup prevents iOS overflow "..." ──
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     if isMultiSelectMode {
                         // Delete-data toggle
@@ -411,7 +410,7 @@ func setMode(_ mode: AppLaunchMode) {
                         }
                         .disabled(isDeleting)
 
-                        // Lock + hide selected apps
+                        // Lock + hide
                         Button {
                             Task { await lockAndHideSelectedApps() }
                         } label: {
@@ -420,7 +419,7 @@ func setMode(_ mode: AppLaunchMode) {
                         }
                         .disabled(selectedAppsForDeletion.isEmpty || isDeleting)
 
-                        // Trash selected apps
+                        // Trash
                         Button {
                             Task { await deleteSelectedApps() }
                         } label: {
@@ -498,7 +497,7 @@ func setMode(_ mode: AppLaunchMode) {
                 onInstallIPA: { choosingIPA = true },
                 onInstallURL: { Task { await startInstallFromUrl() } }
             )
-            .padding(.bottom, 0)
+            .padding(.bottom, isMultiSelectMode ? 60 : 0)
         }
 
         } // end ZStack
@@ -1261,14 +1260,12 @@ func setMode(_ mode: AppLaunchMode) {
             guard !(downloadHelper.items.first(where: { $0.id == itemID })?.isCancelled ?? false)
             else { return }
 
-            // If this was an update, switch to apps tab so per-app sign progress is visible
-            if wasUpdate {
-                await MainActor.run {
-                    withAnimation { DataManager.shared.model.selectedTab = .apps }
-                }
+            // Download done — redirect to Apps tab so the install progress bar is visible
+            await MainActor.run {
+                withAnimation { DataManager.shared.model.selectedTab = .apps }
             }
 
-            // Download done — start install/sign phase (shows nav bar progress)
+            // Start install/sign phase (shows nav bar progress)
             self.installprogressVisible = true
             self.installProgressPercentage = 0.0
             try await installIpaFile(destinationURL, wasUpdate: wasUpdate)
