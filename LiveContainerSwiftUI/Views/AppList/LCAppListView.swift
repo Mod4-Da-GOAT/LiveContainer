@@ -255,11 +255,8 @@ func setMode(_ mode: AppLaunchMode) {
             withAnimation {
                 DataManager.shared.model.selectedTab = .apps
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                NotificationCenter.default.post(
-                    name: NSNotification.InstallAppNotification,
-                    object: ["url": downloadURL, "isUpdate": true]
-                )
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                NotificationCenter.default.post(name: NSNotification.InstallAppNotification, object: ["url": downloadURL])
             }
         }
     }
@@ -291,7 +288,7 @@ func setMode(_ mode: AppLaunchMode) {
                     }
                 }
                 .padding()
-                .animation(searchContext.isTyping ? nil : .easeInOut(duration: 0.2), value: filteredApps)
+                .animation(.easeInOut(duration: 0.25), value: filteredApps.count)
 
                 VStack {
                     if LCUtils.appGroupUserDefault.bool(forKey: "LCStrictHiding") {
@@ -403,22 +400,22 @@ func setMode(_ mode: AppLaunchMode) {
 
                 // ── Trailing: link button (hidden during multi-select) ──
                 ToolbarItem(placement: .topBarTrailing) {
-                    if !isMultiSelectMode {
-                        Button("lc.appList.openLink".loc, systemImage: "link", action: {
-                            Task { await onOpenWebViewTapped() }
-                        })
+                    Button("lc.appList.openLink".loc, systemImage: "link") {
+                        Task { await onOpenWebViewTapped() }
                     }
+                    .opacity(isMultiSelectMode ? 0 : 1)
+                    .disabled(isMultiSelectMode)
                 }
 
                 // ── Trailing: delete-data toggle (only in multi-select) ──
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        withAnimation { deleteAppData.toggle() }
+                        deleteAppData.toggle()
                     } label: {
                         Image(systemName: deleteAppData ? "externaldrive.fill.badge.minus" : "externaldrive.badge.minus")
                             .foregroundColor(deleteAppData ? .red : .secondary)
                     }
-                    .disabled(isDeleting)
+                    .disabled(isDeleting || !isMultiSelectMode)
                     .opacity(isMultiSelectMode ? 1 : 0)
                 }
 
@@ -487,7 +484,7 @@ func setMode(_ mode: AppLaunchMode) {
                                 }
                             }
                         } label: {
-                            Label("lc.appList.sort".loc, systemImage: "line.3.horizontal.decrease.circle")
+                            Image(systemName: "line.3.horizontal.decrease.circle")
                         }
                     }
                 }
@@ -1710,8 +1707,8 @@ func setMode(_ mode: AppLaunchMode) {
     }
 
     /// Lock and hide all selected apps at once.
-    /// Does NOT exit multi-select mode so the user can keep selecting/deselecting
-    /// hidden apps (isHiddenAppUnlocked stays true).
+    /// Exits multi-select mode afterwards — the user can still see and tap
+    /// hidden apps if isHiddenAppUnlocked is already true.
     func lockAndHideSelectedApps() async {
         guard !selectedAppsForDeletion.isEmpty else { return }
         let appsToProcess = selectedAppsForDeletion
@@ -1730,15 +1727,16 @@ func setMode(_ mode: AppLaunchMode) {
             }
         }
 
-        // Keep multiselect active so user can keep picking hidden apps.
-        // Just clear the current selection and re-enable interaction.
+        // Exit multiselect — hidden apps stay visible if isHiddenAppUnlocked
+        // is still true, so the user can still interact with them normally.
         await MainActor.run {
             withAnimation {
                 selectedAppsForDeletion.removeAll()
+                isMultiSelectMode = false
+                deleteAppData = false
                 isDeleting = false
             }
-            // isMultiSelectMode stays true — hidden apps remain selectable
-            // because sharedModel.isHiddenAppUnlocked is untouched.
+            sharedModel.isMultiSelectMode = false
         }
     }
 

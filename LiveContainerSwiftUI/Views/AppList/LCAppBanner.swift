@@ -38,6 +38,8 @@ struct LCAppBanner : View {
     
     @AppStorage("dynamicColors", store: LCUtils.appGroupUserDefault) var dynamicColors = true
     @AppStorage("darkModeIcon", store: LCUtils.appGroupUserDefault) var darkModeIcon = false
+    @AppStorage("LCTintEnabled", store: LCUtils.appGroupUserDefault) var tintEnabled = false
+    @AppStorage("LCTintColorHex", store: LCUtils.appGroupUserDefault) var tintColorHex = ""
     @State private var mainColor : Color
     @State private var icon: UIImage
     
@@ -58,6 +60,22 @@ struct LCAppBanner : View {
 
     }
     @State private var mainHueColor: CGFloat? = nil
+
+    /// The colour used for the banner background and text.
+    /// When the user has enabled a custom tint, that overrides the auto-extracted icon colour.
+    private var effectiveMainColor: Color {
+        if tintEnabled, !tintColorHex.isEmpty {
+            var hex = tintColorHex.trimmingCharacters(in: .whitespacesAndNewlines)
+            if hex.hasPrefix("#") { hex = String(hex.dropFirst()) }
+            if hex.count == 6, let value = UInt64(hex, radix: 16) {
+                let r = Double((value >> 16) & 0xFF) / 255
+                let g = Double((value >> 8) & 0xFF) / 255
+                let b = Double(value & 0xFF) / 255
+                return Color(red: r, green: g, blue: b)
+            }
+        }
+        return mainColor
+    }
     
     var body: some View {
 
@@ -67,7 +85,7 @@ struct LCAppBanner : View {
                     .frame(width: 60, height: 60)
 
                 VStack (alignment: .leading, content: {
-                    let color = (dynamicColors ? mainColor : Color("FontColor"))
+                    let color = (dynamicColors ? effectiveMainColor : Color("FontColor"))
                     // note: keep this so the color updates when toggling dark mode
                     let textColor = colorScheme == .dark ? color.readableTextColor() : color.readableTextColor()
                     HStack {
@@ -222,14 +240,14 @@ struct LCAppBanner : View {
                 .frame(height: 32)
                 .background(GeometryReader { g in
                     if !model.isSigningInProgress {
-                        Capsule().fill(dynamicColors ? mainColor : Color("FontColor"))
+                        Capsule().fill(dynamicColors ? effectiveMainColor : Color("FontColor"))
                     } else {
                         let w = g.size.width
                         let h = g.size.height
                         Capsule()
-                            .fill(dynamicColors ? mainColor : Color("FontColor")).opacity(0.2)
+                            .fill(dynamicColors ? effectiveMainColor : Color("FontColor")).opacity(0.2)
                         Circle()
-                            .fill(dynamicColors ? mainColor : Color("FontColor"))
+                            .fill(dynamicColors ? effectiveMainColor : Color("FontColor"))
                             .frame(width: w * 2, height: w * 2)
                             .offset(x: (model.signProgress - 2) * w, y: h/2-w)
                     }
@@ -275,14 +293,14 @@ struct LCAppBanner : View {
                 .fixedSize()
                 .background(GeometryReader { g in
                     if !model.isSigningInProgress {
-                        Capsule().fill(dynamicColors ? mainColor : Color("FontColor"))
+                        Capsule().fill(dynamicColors ? effectiveMainColor : Color("FontColor"))
                     } else {
                         let w = g.size.width
                         let h = g.size.height
                         Capsule()
-                            .fill(dynamicColors ? mainColor : Color("FontColor")).opacity(0.2)
+                            .fill(dynamicColors ? effectiveMainColor : Color("FontColor")).opacity(0.2)
                         Circle()
-                            .fill(dynamicColors ? mainColor : Color("FontColor"))
+                            .fill(dynamicColors ? effectiveMainColor : Color("FontColor"))
                             .frame(width: w * 2, height: w * 2)
                             .offset(x: (model.signProgress - 2) * w, y: h/2-w)
                     }
@@ -296,7 +314,7 @@ struct LCAppBanner : View {
         .padding()
         .frame(height: 88)
         .background {
-            RoundedRectangle(cornerSize: CGSize(width:22, height: 22)).fill(dynamicColors ? mainColor.opacity(0.5) : Color("AppBannerBG"))
+            RoundedRectangle(cornerSize: CGSize(width:22, height: 22)).fill(dynamicColors ? effectiveMainColor.opacity(0.5) : Color("AppBannerBG"))
                 .onTapGesture(count: 2) {
                     openSettings()
                 }
@@ -356,7 +374,7 @@ struct LCAppBanner : View {
     // MARK: - Computed Properties
 
     private var currentColor: Color {
-        dynamicColors ? mainColor : Color("FontColor")
+        dynamicColors ? effectiveMainColor : Color("FontColor")
     }
 
     private var currentTextColor: Color {
