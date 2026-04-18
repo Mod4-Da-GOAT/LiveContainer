@@ -255,8 +255,11 @@ func setMode(_ mode: AppLaunchMode) {
             withAnimation {
                 DataManager.shared.model.selectedTab = .apps
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                NotificationCenter.default.post(name: NSNotification.InstallAppNotification, object: ["url": downloadURL])
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                NotificationCenter.default.post(
+                    name: NSNotification.InstallAppNotification,
+                    object: ["url": downloadURL, "isUpdate": true]
+                )
             }
         }
     }
@@ -409,56 +412,49 @@ func setMode(_ mode: AppLaunchMode) {
 
                 // ── Trailing: delete-data toggle (only in multi-select) ──
                 ToolbarItem(placement: .topBarTrailing) {
-                    if isMultiSelectMode {
-                        Button {
-                            withAnimation { deleteAppData.toggle() }
-                        } label: {
-                            Image(systemName: deleteAppData ? "externaldrive.fill.badge.minus" : "externaldrive.badge.minus")
-                                .foregroundColor(deleteAppData ? .red : .secondary)
-                        }
-                        .disabled(isDeleting)
+                    Button {
+                        withAnimation { deleteAppData.toggle() }
+                    } label: {
+                        Image(systemName: deleteAppData ? "externaldrive.fill.badge.minus" : "externaldrive.badge.minus")
+                            .foregroundColor(deleteAppData ? .red : .secondary)
                     }
+                    .disabled(isDeleting)
+                    .opacity(isMultiSelectMode ? 1 : 0)
                 }
 
                 // ── Trailing: multi-lock/hide button (only in multi-select) ──
                 ToolbarItem(placement: .topBarTrailing) {
-                    if isMultiSelectMode {
-                        Button {
-                            Task { await lockAndHideSelectedApps() }
-                        } label: {
-                            Image(systemName: "lock.shield")
-                                .foregroundColor(selectedAppsForDeletion.isEmpty || isDeleting ? .secondary : .orange)
-                        }
-                        .disabled(selectedAppsForDeletion.isEmpty || isDeleting)
+                    Button {
+                        Task { await lockAndHideSelectedApps() }
+                    } label: {
+                        Image(systemName: "lock.shield")
+                            .foregroundColor(selectedAppsForDeletion.isEmpty || isDeleting ? .secondary : .orange)
                     }
+                    .disabled(selectedAppsForDeletion.isEmpty || isDeleting || !isMultiSelectMode)
+                    .opacity(isMultiSelectMode ? 1 : 0)
                 }
 
                 // ── Trailing: trash button (only in multi-select) ──
                 ToolbarItem(placement: .topBarTrailing) {
-                    if isMultiSelectMode {
-                        Button {
-                            Task { await deleteSelectedApps() }
-                        } label: {
-                            Image(systemName: "trash")
-                                .foregroundColor(selectedAppsForDeletion.isEmpty || isDeleting ? .secondary : .red)
-                        }
-                        .disabled(selectedAppsForDeletion.isEmpty || isDeleting)
+                    Button {
+                        Task { await deleteSelectedApps() }
+                    } label: {
+                        Image(systemName: "trash")
+                            .foregroundColor(selectedAppsForDeletion.isEmpty || isDeleting ? .secondary : .red)
                     }
+                    .disabled(selectedAppsForDeletion.isEmpty || isDeleting || !isMultiSelectMode)
+                    .opacity(isMultiSelectMode ? 1 : 0)
                 }
 
                 // ── Trailing: select / cancel toggle ──
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        var t = Transaction()
-                        t.disablesAnimations = true
-                        withTransaction(t) {
-                            isMultiSelectMode.toggle()
-                            if !isMultiSelectMode {
-                                selectedAppsForDeletion.removeAll()
-                                deleteAppData = false
-                            }
-                            sharedModel.isMultiSelectMode = isMultiSelectMode
+                        isMultiSelectMode.toggle()
+                        if !isMultiSelectMode {
+                            selectedAppsForDeletion.removeAll()
+                            deleteAppData = false
                         }
+                        sharedModel.isMultiSelectMode = isMultiSelectMode
                     } label: {
                         Image(systemName: isMultiSelectMode ? "xmark.circle.fill" : "checkmark.circle")
                             .foregroundColor(isMultiSelectMode ? .red : .green)
@@ -510,7 +506,7 @@ func setMode(_ mode: AppLaunchMode) {
                 onInstallIPA: { choosingIPA = true },
                 onInstallURL: { Task { await startInstallFromUrl() } }
             )
-            .padding(.bottom, isMultiSelectMode ? 60 : 0)
+            .padding(.bottom, 0)
         }
 
         } // end ZStack
@@ -1714,17 +1710,19 @@ func setMode(_ mode: AppLaunchMode) {
     }
 
     /// Lock and hide all selected apps at once.
+    /// Does NOT exit multi-select mode so the user can keep selecting/deselecting
+    /// hidden apps (isHiddenAppUnlocked stays true).
     func lockAndHideSelectedApps() async {
         guard !selectedAppsForDeletion.isEmpty else { return }
         let appsToProcess = selectedAppsForDeletion
         isDeleting = true
 
         for app in appsToProcess {
-            // Lock first (doesn't require auth when locking)
+            // Lock first (no auth needed when locking)
             if !app.appInfo.isLocked {
                 app.appInfo.isLocked = true
             }
-            // Then hide
+            // Move to hidden list
             if !app.appInfo.isHidden {
                 app.appInfo.isHidden = true
                 app.uiIsHidden = true
@@ -1732,13 +1730,15 @@ func setMode(_ mode: AppLaunchMode) {
             }
         }
 
+        // Keep multiselect active so user can keep picking hidden apps.
+        // Just clear the current selection and re-enable interaction.
         await MainActor.run {
             withAnimation {
                 selectedAppsForDeletion.removeAll()
-                isMultiSelectMode = false
                 isDeleting = false
             }
-            sharedModel.isMultiSelectMode = false
+            // isMultiSelectMode stays true — hidden apps remain selectable
+            // because sharedModel.isHiddenAppUnlocked is untouched.
         }
     }
 
