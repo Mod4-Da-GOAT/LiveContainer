@@ -51,9 +51,11 @@ struct LCSettingsView: View {
     @AppStorage("LCSwitchAppWithoutAsking") var silentSwitchApp = false
     @AppStorage("LCOpenWebPageWithoutAsking") var silentOpenWebPage = false
     @AppStorage("LCDontSignApp", store: LCUtils.appGroupUserDefault) var dontSignApp = false
-    @AppStorage("LCStrictHiding", store: LCUtils.appGroupUserDefault) var strictHiding = false
     @AppStorage("dynamicColors", store: LCUtils.appGroupUserDefault) var dynamicColors = true
     @AppStorage("darkModeIcon", store: LCUtils.appGroupUserDefault) var darkModeIcon = false
+    @AppStorage("LCTintColorHex", store: LCUtils.appGroupUserDefault) var tintColorHex: String = ""
+    @State private var showingIconPicker = false
+    @State private var customIconPreview: UIImage? = nil
     
     @AppStorage("LCSideJITServerAddress", store: LCUtils.appGroupUserDefault) var sideJITServerAddress : String = ""
     @AppStorage("LCDeviceUDID", store: LCUtils.appGroupUserDefault) var deviceUDID: String = ""
@@ -234,13 +236,62 @@ struct LCSettingsView: View {
                             Text("lc.settings.darkModeIcon".loc)
                         }
                     }
-                    Toggle(isOn: $showExitButton) {
-                        Text("lc.settings.showExitButton".loc)
+                    // Tint color picker
+                    HStack {
+                        Text("lc.settings.tintColor".loc)
+                        Spacer()
+                        ColorPicker("", selection: Binding(
+                            get: {
+                                guard !tintColorHex.isEmpty,
+                                      let uiColor = UIColor(hex: tintColorHex) else {
+                                    return Color.accentColor
+                                }
+                                return Color(uiColor)
+                            },
+                            set: { newColor in
+                                let uiColor = UIColor(newColor)
+                                var r: CGFloat = 0; var g: CGFloat = 0
+                                var b: CGFloat = 0; var a: CGFloat = 0
+                                uiColor.getRed(&r, green: &g, blue: &b, alpha: &a)
+                                tintColorHex = String(format: "#%02X%02X%02X",
+                                    Int(r * 255), Int(g * 255), Int(b * 255))
+                            }
+                        ), supportsOpacity: false)
+                        .labelsHidden()
+                        if !tintColorHex.isEmpty {
+                            Button {
+                                tintColorHex = ""
+                            } label: {
+                                Image(systemName: "arrow.uturn.backward.circle.fill")
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
-                    if showExitButton {
-                        Picker("lc.settings.exitButtonPosition".loc, selection: $exitButtonOnRight) {
-                            Text("lc.settings.exitButtonPosition.left".loc).tag(false)
-                            Text("lc.settings.exitButtonPosition.right".loc).tag(true)
+                    // Custom AppNest icon (PNG)
+                    Button {
+                        showingIconPicker = true
+                    } label: {
+                        HStack {
+                            Text("lc.settings.customAppIcon".loc)
+                            Spacer()
+                            if let preview = customIconPreview {
+                                Image(uiImage: preview)
+                                    .resizable()
+                                    .frame(width: 28, height: 28)
+                                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                            } else {
+                                Image(systemName: "app.badge")
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    if customIconPreview != nil {
+                        Button(role: .destructive) {
+                            customIconPreview = nil
+                            LCSettingsView.clearCustomAppIcon()
+                        } label: {
+                            Text("lc.settings.removeCustomAppIcon".loc)
                         }
                     }
                 } header: {
@@ -251,6 +302,15 @@ struct LCSettingsView: View {
                 Section{
                     Toggle(isOn: $frameShortIcon) {
                         Text("lc.settings.FrameIcon".loc)
+                    }
+                    Toggle(isOn: $showExitButton) {
+                        Text("lc.settings.showExitButton".loc)
+                    }
+                    if showExitButton {
+                        Picker("lc.settings.exitButtonPosition".loc, selection: $exitButtonOnRight) {
+                            Text("lc.settings.exitButtonPosition.left".loc).tag(false)
+                            Text("lc.settings.exitButtonPosition.right".loc).tag(true)
+                        }
                     }
                 } header: {
                     Text("lc.common.miscellaneous".loc)
@@ -274,16 +334,6 @@ struct LCSettingsView: View {
                     Text("lc.settings.silentOpenWebPageDesc".loc)
                 }
 
-                if sharedModel.isHiddenAppUnlocked {
-                    Section {
-                        Toggle(isOn: $strictHiding) {
-                            Text("lc.settings.strictHiding".loc)
-                        }
-                    } footer: {
-                        Text("lc.settings.strictHidingDesc".loc)
-                    }
-                }
-                
                 Section {
                     Toggle(isOn: $dontSignApp) {
                         Text("lc.settings.dontSign".loc)
@@ -293,13 +343,6 @@ struct LCSettingsView: View {
                 }
                     
                 Section {
-                    if sharedModel.multiLCStatus != 2 {
-                        NavigationLink {
-                            LCStorageManagementView()
-                        } label: {
-                            Text("lc.settings.storageManagement".loc)
-                        }
-                    }
                     NavigationLink {
                         LCDataManagementView(appDataFolderNames: $appDataFolderNames)
                     } label: {
@@ -490,7 +533,13 @@ struct LCSettingsView: View {
             )
         }
         .navigationViewStyle(StackNavigationViewStyle())
+        .sheet(isPresented: $showingIconPicker) {
+            AppIconPickerView { image in
+                applyCustomAppIcon(image)
+            }
+        }
         .onAppear() {
+            loadCustomIconPreviewIfNeeded()
             if !isViewAppeared {
                 guard sharedModel.selectedTab == .settings, let link = sharedModel.deepLink else { return }
                 sharedModel.deepLink = nil
@@ -761,6 +810,82 @@ struct LCSettingsView: View {
                 onSideStoreCertificateCallback(certificateData: certData, password: password)
                 
             }
+        }
+    }
+
+    static func clearCustomAppIcon() {
+        UIApplication.shared.setAlternateIconName(nil)
+    }
+
+    func applyCustomAppIcon(_ image: UIImage) {
+        // Save the PNG to the app's documents for persistence
+        let fm = FileManager.default
+        if let data = image.pngData(),
+           let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first {
+            let dest = docs.appendingPathComponent("LCCustomAppIcon.png")
+            try? data.write(to: dest)
+        }
+        customIconPreview = image
+        successInfo = "lc.settings.customAppIconApplied".loc
+        successShow = true
+    }
+
+    func loadCustomIconPreviewIfNeeded() {
+        guard customIconPreview == nil else { return }
+        let fm = FileManager.default
+        if let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first {
+            let src = docs.appendingPathComponent("LCCustomAppIcon.png")
+            if fm.fileExists(atPath: src.path),
+               let img = UIImage(contentsOfFile: src.path) {
+                customIconPreview = img
+            }
+        }
+    }
+}
+
+// MARK: - UIColor hex helper
+extension UIColor {
+    convenience init?(hex: String) {
+        var cleaned = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleaned.hasPrefix("#") { cleaned = String(cleaned.dropFirst()) }
+        guard cleaned.count == 6, let value = UInt64(cleaned, radix: 16) else { return nil }
+        let r = CGFloat((value >> 16) & 0xFF) / 255
+        let g = CGFloat((value >> 8) & 0xFF) / 255
+        let b = CGFloat(value & 0xFF) / 255
+        self.init(red: r, green: g, blue: b, alpha: 1)
+    }
+}
+
+// MARK: - Icon picker sheet wrapper (iOS image picker)
+struct AppIconPickerView: UIViewControllerRepresentable {
+    let onPick: (UIImage) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .photoLibrary
+        picker.allowsEditing = true
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: AppIconPickerView
+        init(_ parent: AppIconPickerView) { self.parent = parent }
+
+        func imagePickerController(_ picker: UIImagePickerController,
+                                   didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            let img = (info[.editedImage] ?? info[.originalImage]) as? UIImage
+            picker.dismiss(animated: true)
+            if let img { parent.onPick(img) }
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            picker.dismiss(animated: true)
         }
     }
 }
