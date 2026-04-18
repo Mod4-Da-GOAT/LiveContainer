@@ -30694,22 +30694,22 @@
         }
       }
     },
+    "lc.settings.tintColorEnabled": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable App Tint Color"
+          }
+        }
+      }
+    },
     "lc.settings.tintColorPicker": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Choose Color"
-          }
-        }
-      }
-    },
-    "lc.settings.tintColorEnabled": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enable Tint Color"
           }
         }
       }
