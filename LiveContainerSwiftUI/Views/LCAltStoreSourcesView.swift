@@ -617,7 +617,10 @@ struct LCSourcesView: View {
             expandedSources = []
             // Trigger network refresh lazily on first appear instead of at app launch
             if !isViewAppeared {
-                Task { await viewModel.refreshAllSources() }
+                Task {
+                    try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s — let app list render first
+                    await viewModel.refreshAllSources()
+                }
                 if sharedModel.selectedTab == .sources, let link = sharedModel.deepLink {
                     sharedModel.deepLink = nil
                     handleURL(url: link)
@@ -691,13 +694,17 @@ struct LCSourcesView: View {
         withAnimation {
             DataManager.shared.model.selectedTab = .apps
         }
-        // Use 0.8s so LCAppListView is fully appeared and its onReceive is live
-        // before the notification fires. Also pass the human-readable app name so
-        // the toolbar indicator shows it instead of the raw filename.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+        // Use 1.5s so LCAppListView is fully appeared and its onReceive is live
+        // before the notification fires. Pass the app name and icon URL so the
+        // download tray can show them immediately.
+        let iconURL = app.iconURL
+        let appName = app.name
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            var payload: [String: Any] = ["url": downloadURL, "appName": appName]
+            if let iconURL { payload["iconURL"] = iconURL }
             NotificationCenter.default.post(
                 name: NSNotification.InstallAppNotification,
-                object: ["url": downloadURL, "appName": app.name]
+                object: payload
             )
         }
     }

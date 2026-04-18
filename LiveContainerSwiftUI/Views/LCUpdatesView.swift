@@ -151,7 +151,11 @@ struct LCUpdatesView: View {
                     }
                 }
                 .onAppear {
-                    Task { await sharedModel.sourcesViewModel.refreshAllSources() }
+                    // Defer slightly so app list renders first, then fetch updates in background
+                    Task {
+                        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
+                        await sharedModel.sourcesViewModel.refreshAllSources()
+                    }
                 }
                 .onChange(of: sharedModel.sourcesViewModel.sources.count) { count in
                     if count > 0 && !sharedModel.sourcesViewModel.isRefreshingAll {
@@ -238,11 +242,16 @@ struct LCUpdatesView: View {
         sharedModel.downloadHelper._pendingLegacyName = entry.app.appInfo.displayName()
         sharedModel.downloadHelper.isUpdate = true
 
-        // We validate the download AFTER it completes by inspecting the installed IPA.
-        // The validation is done inside LCAppListView.installIpaFile which checks the
-        // bundle ID of the extracted app against installed apps.
-        // Here we add a secondary pre-flight guard: verify the source version's bundle
-        // ID still matches what is installed (guards against source mismatches).
+        // Find the matching source app to get its icon URL for the download tray.
+        let sourceIconURL: URL? = sharedModel.sourcesViewModel.sources.lazy
+            .compactMap { $0.source }
+            .flatMap { $0.apps }
+            .first { $0.bundleIdentifier == bundleId }?
+            .iconURL
+        if let iconURL = sourceIconURL {
+            sharedModel.downloadHelper._pendingIconURL = iconURL
+        }
+
         let downloadURL = entry.newVersion.downloadURL
         NotificationCenter.default.post(
             name: NSNotification.InstallAppNotification,
