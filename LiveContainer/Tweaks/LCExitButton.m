@@ -226,20 +226,26 @@ static void lceb_relaunchLC(void) {
         message:@"Any unsaved data in the running app may be lost."
         preferredStyle:UIAlertControllerStyleAlert];
 
-    __weak UIViewController *weakRootVC = rootVC;
+    __weak UIViewController *weakRoot = rootVC;
     [alert addAction:[UIAlertAction
         actionWithTitle:@"Leave App"
         style:UIAlertActionStyleDestructive
         handler:^(UIAlertAction *_) {
-            // Dismiss the alert before tearing down the process to avoid
-            // "view not in window hierarchy" crash during UIKit teardown.
-            UIViewController *strongVC = weakRootVC;
-            if (strongVC && strongVC.presentedViewController) {
-                [strongVC dismissViewControllerAnimated:NO completion:^{
-                    lceb_relaunchLC();
-                }];
+            // Step 1: dismiss the alert non-animated so UIKit isn't mid-transition
+            // when we call relaunchLC. Presenting on a view during a transition
+            // is the primary crash source.
+            UIViewController *strong = weakRoot;
+            void (^doRelaunch)(void) = ^{
+                dispatch_after(
+                    dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)),
+                    dispatch_get_main_queue(),
+                    ^{ lceb_relaunchLC(); }
+                );
+            };
+            if (strong && strong.presentedViewController) {
+                [strong dismissViewControllerAnimated:NO completion:doRelaunch];
             } else {
-                lceb_relaunchLC();
+                doRelaunch();
             }
         }]];
     [alert addAction:[UIAlertAction
