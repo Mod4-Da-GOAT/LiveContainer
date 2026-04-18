@@ -46,6 +46,15 @@ struct LCDataManagementView : View {
     var body: some View {
     
         Form {
+            if sharedModel.multiLCStatus != 2 {
+                Section {
+                    NavigationLink {
+                        LCStorageManagementView()
+                    } label: {
+                        Text("lc.settings.storageManagement".loc)
+                    }
+                }
+            }
             Section {
                 if sharedModel.multiLCStatus != 2 {
                     Button {
@@ -715,6 +724,11 @@ struct LCDataManagementView : View {
         for app in sharedModel.hiddenApps {
             app.appInfo.clearIconCache()
         }
+        // Clear AppNest's own in-memory image caches
+        URLCache.shared.removeAllCachedResponses()
+        // Also clear the CachedAsyncImage NSCache by resetting the shared URLSession
+        let config = URLSessionConfiguration.default
+        config.urlCache = nil
         // Flush iconservicesd system cache so Files.app refreshes immediately.
         LCAppInfo.flushSystemIconCache()
     }
