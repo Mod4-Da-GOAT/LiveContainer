@@ -231,13 +231,13 @@ static void lceb_relaunchLC(void) {
         actionWithTitle:@"Leave App"
         style:UIAlertActionStyleDestructive
         handler:^(UIAlertAction *_) {
-            // Step 1: dismiss the alert non-animated so UIKit isn't mid-transition
-            // when we call relaunchLC. Presenting on a view during a transition
-            // is the primary crash source.
+            // Dismiss alert without animation first, then relaunch.
+            // Calling lceb_relaunchLC() while UIKit is mid-transition
+            // causes "presenting on a view not in a window" crash.
             UIViewController *strong = weakRoot;
             void (^doRelaunch)(void) = ^{
                 dispatch_after(
-                    dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)),
+                    dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.15 * NSEC_PER_SEC)),
                     dispatch_get_main_queue(),
                     ^{ lceb_relaunchLC(); }
                 );
