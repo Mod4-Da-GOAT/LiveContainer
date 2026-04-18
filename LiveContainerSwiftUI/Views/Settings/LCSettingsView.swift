@@ -54,6 +54,7 @@ struct LCSettingsView: View {
     @AppStorage("dynamicColors", store: LCUtils.appGroupUserDefault) var dynamicColors = true
     @AppStorage("darkModeIcon", store: LCUtils.appGroupUserDefault) var darkModeIcon = false
     @AppStorage("LCTintColorHex", store: LCUtils.appGroupUserDefault) var tintColorHex: String = ""
+    @AppStorage("LCTintEnabled", store: LCUtils.appGroupUserDefault) var tintEnabled: Bool = false
     @State private var showingIconPicker = false
     @State private var customIconPreview: UIImage? = nil
     
@@ -236,36 +237,40 @@ struct LCSettingsView: View {
                             Text("lc.settings.darkModeIcon".loc)
                         }
                     }
-                    // Tint color picker
-                    HStack {
-                        Text("lc.settings.tintColorEnabled".loc)
-                        Spacer()
-                        ColorPicker("", selection: Binding(
-                            get: {
-                                guard !tintColorHex.isEmpty,
-                                      let uiColor = UIColor(hex: tintColorHex) else {
-                                    return Color.accentColor
+                    // Tint color enable/disable
+                    Toggle("lc.settings.tintColorEnabled".loc, isOn: $tintEnabled)
+                    // Tint color picker — only shown when tinting is on
+                    if tintEnabled {
+                        HStack {
+                            Text("lc.settings.tintColorPicker".loc)
+                            Spacer()
+                            ColorPicker("", selection: Binding(
+                                get: {
+                                    guard !tintColorHex.isEmpty,
+                                          let uiColor = UIColor(hex: tintColorHex) else {
+                                        return Color.accentColor
+                                    }
+                                    return Color(uiColor)
+                                },
+                                set: { newColor in
+                                    let uiColor = UIColor(newColor)
+                                    var r: CGFloat = 0; var g: CGFloat = 0
+                                    var b: CGFloat = 0; var a: CGFloat = 0
+                                    uiColor.getRed(&r, green: &g, blue: &b, alpha: &a)
+                                    tintColorHex = String(format: "#%02X%02X%02X",
+                                        Int(r * 255), Int(g * 255), Int(b * 255))
                                 }
-                                return Color(uiColor)
-                            },
-                            set: { newColor in
-                                let uiColor = UIColor(newColor)
-                                var r: CGFloat = 0; var g: CGFloat = 0
-                                var b: CGFloat = 0; var a: CGFloat = 0
-                                uiColor.getRed(&r, green: &g, blue: &b, alpha: &a)
-                                tintColorHex = String(format: "#%02X%02X%02X",
-                                    Int(r * 255), Int(g * 255), Int(b * 255))
+                            ), supportsOpacity: false)
+                            .labelsHidden()
+                            if !tintColorHex.isEmpty {
+                                Button {
+                                    tintColorHex = ""
+                                } label: {
+                                    Image(systemName: "arrow.uturn.backward.circle.fill")
+                                        .foregroundColor(.secondary)
+                                }
+                                .buttonStyle(.plain)
                             }
-                        ), supportsOpacity: false)
-                        .labelsHidden()
-                        if !tintColorHex.isEmpty {
-                            Button {
-                                tintColorHex = ""
-                            } label: {
-                                Image(systemName: "arrow.uturn.backward.circle.fill")
-                                    .foregroundColor(.secondary)
-                            }
-                            .buttonStyle(.plain)
                         }
                     }
                     // Custom AppNest icon (PNG)
@@ -815,6 +820,12 @@ struct LCSettingsView: View {
 
     static func clearCustomAppIcon() {
         UIApplication.shared.setAlternateIconName(nil)
+        // Also remove the saved PNG so it doesn't reload on next launch
+        let fm = FileManager.default
+        if let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first {
+            let saved = docs.appendingPathComponent("LCCustomAppIcon.png")
+            try? fm.removeItem(at: saved)
+        }
     }
 
     func applyCustomAppIcon(_ image: UIImage) {
