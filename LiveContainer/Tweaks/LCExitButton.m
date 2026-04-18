@@ -231,9 +231,6 @@ static void lceb_relaunchLC(void) {
         actionWithTitle:@"Leave App"
         style:UIAlertActionStyleDestructive
         handler:^(UIAlertAction *_) {
-            // Dismiss alert without animation first, then relaunch.
-            // Calling lceb_relaunchLC() while UIKit is mid-transition
-            // causes "presenting on a view not in a window" crash.
             UIViewController *strong = weakRoot;
             void (^doRelaunch)(void) = ^{
                 dispatch_after(
