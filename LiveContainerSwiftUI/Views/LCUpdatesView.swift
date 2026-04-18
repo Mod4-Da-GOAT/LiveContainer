@@ -253,15 +253,22 @@ struct LCUpdatesView: View {
         }
 
         let downloadURL = entry.newVersion.downloadURL
-        NotificationCenter.default.post(
-            name: NSNotification.InstallAppNotification,
-            object: [
-                "url":     downloadURL,
-                "appName": entry.app.appInfo.displayName() as Any,
-                // Signal that this is an update so installFromUrl marks wasUpdate=true
-                "isUpdate": true
-            ]
-        )
+        let appName = entry.app.appInfo.displayName()
+        // Switch to apps tab first, then post after a delay so LCAppListView
+        // is fully appeared and its onReceive handler is live.
+        DispatchQueue.main.async {
+            withAnimation { DataManager.shared.model.selectedTab = .apps }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            NotificationCenter.default.post(
+                name: NSNotification.InstallAppNotification,
+                object: [
+                    "url":     downloadURL,
+                    "appName": appName as Any,
+                    "isUpdate": true
+                ]
+            )
+        }
 
         // Monitor until this download item leaves the queue, then clear the badge.
         Task {
